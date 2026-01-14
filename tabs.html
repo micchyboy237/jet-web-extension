@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Open Tabs</title>
+    <style>
+      body {
+        width: 600px;
+        margin: 0;
+        padding: 16px 20px;
+        font-family: system-ui, sans-serif;
+        background: #f8fafc;
+        color: #1e293b;
+      }
+      h1 {
+        margin: 0 0 1rem;
+        font-size: 1.6rem;
+        font-weight: 700;
+      }
+      .controls {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 1.2rem;
+      }
+      input,
+      select {
+        padding: 9px 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        flex: 1;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      li {
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+      }
+      li:hover {
+        background: #f1f5f9;
+      }
+      .favicon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+      .title {
+        font-weight: 500;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .url {
+        color: #64748b;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Updated heading with dynamic count -->
+    <h1>Open Tabs</h1>
+
+    <div class="controls">
+      <input id="search" type="text" placeholder="Search title or URL..." />
+      <select id="filter">
+        <option value="all">All tabs</option>
+        <option value="http">HTTP/HTTPS only</option>
+        <option value="chrome">chrome:// only</option>
+      </select>
+    </div>
+
+    <ul id="tabList"></ul>
+
+    <script src="tabs.js"></script>
+  </body>
+</html>

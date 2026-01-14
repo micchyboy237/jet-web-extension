@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Jet Web Extension",
+  "description": "Practice Chrome/Opera extension development",
+  "version": "1.0",
+  "permissions": ["activeTab", "scripting", "clipboardWrite", "tabs"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["tabs.html", "tabs.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
