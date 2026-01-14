@@ -3,14 +3,23 @@
   "name": "Jet Web Extension",
   "description": "Practice Chrome/Opera extension development",
   "version": "1.0",
-  "permissions": ["activeTab", "scripting", "clipboardWrite", "tabs"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "clipboardWrite",
+    "tabs",
+    "webRequest"
+  ],
   "action": {
     "default_popup": "popup.html"
   },
   "web_accessible_resources": [
     {
-      "resources": ["tabs.html", "tabs.js"],
+      "resources": ["tabs.html", "tabs.js", "network.html", "network.js"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

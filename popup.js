@@ -60,4 +60,16 @@ document.addEventListener("DOMContentLoaded", () => {
       status.style.color = "#dc2626";
     }
   };
+
+  // Button 3: Network History
+  document.getElementById("btn-network").onclick = () => {
+    chrome.windows.create({
+      url: chrome.runtime.getURL("network.html"),
+      type: "popup",
+      width: 900,
+      height: 720,
+      left: 120,
+      top: 60,
+    });
+  };
 });

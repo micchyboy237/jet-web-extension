@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Network History</title>
+    <style>
+      :root {
+        --bg: #f8f9fa;
+        --text: #212529;
+        --muted: #6c757d;
+        --border: #dee2e6;
+        --success: #198754;
+        --danger: #dc3545;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-width: 860px;
+      }
+      h1 {
+        margin: 0 0 1.2rem;
+        font-size: 1.8rem;
+      }
+      .controls {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 1.4rem;
+        flex-wrap: wrap;
+      }
+      input,
+      select,
+      button {
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.96rem;
+      }
+      input {
+        flex: 1;
+        min-width: 220px;
+      }
+      select {
+        min-width: 160px;
+      }
+      button.clear {
+        background: #dc3545;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+      button.clear:hover {
+        background: #c82333;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      th,
+      td {
+        padding: 12px 14px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+      th {
+        background: #f1f3f5;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      tr:hover {
+        background: #f8f9fa;
+      }
+      .status-ok {
+        color: var(--success);
+      }
+      .status-err {
+        color: var(--danger);
+        font-weight: 500;
+      }
+      .method-get {
+        color: #0d6efd;
+      }
+      .method-post {
+        color: #fd7e14;
+      }
+      .method-put {
+        color: #6610f2;
+      }
+      .url-col {
+        max-width: 420px;
+        word-break: break-all;
+      }
+      .time-col {
+        color: var(--muted);
+        font-size: 0.86rem;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Network History</h1>
+
+    <div class="controls">
+      <input id="search" type="text" placeholder="Search URL, initiator..." />
+      <select id="typeFilter">
+        <option value="all">All types</option>
+        <option value="main_frame">Main frame</option>
+        <option value="sub_frame">Iframe</option>
+        <option value="stylesheet">CSS</option>
+        <option value="script">JS</option>
+        <option value="image">Images</option>
+        <option value="xmlhttprequest">XHR/Fetch</option>
+        <option value="other">Other</option>
+      </select>
+      <select id="statusFilter">
+        <option value="all">All status</option>
+        <option value="2xx">2xx (Success)</option>
+        <option value="3xx">3xx (Redirect)</option>
+        <option value="4xx">4xx (Client Error)</option>
+        <option value="5xx">5xx (Server Error)</option>
+        <option value="ERROR">Failed</option>
+      </select>
+      <button class="clear" id="btn-clear">Clear History</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Method</th>
+          <th>Status</th>
+          <th>Type</th>
+          <th class="url-col">URL</th>
+          <th>Initiator</th>
+        </tr>
+      </thead>
+      <tbody id="requestList"></tbody>
+    </table>
+
+    <script src="network.js"></script>
+  </body>
+</html>
