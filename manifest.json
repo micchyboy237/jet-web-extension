@@ -8,14 +8,23 @@
     "scripting",
     "clipboardWrite",
     "tabs",
-    "webRequest"
+    "webRequest",
+    "history",
+    "favicon"
   ],
   "action": {
     "default_popup": "popup.html"
   },
   "web_accessible_resources": [
     {
-      "resources": ["tabs.html", "tabs.js", "network.html", "network.js"],
+      "resources": [
+        "tabs.html",
+        "tabs.js",
+        "network.html",
+        "network.js",
+        "history.html",
+        "history.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ],

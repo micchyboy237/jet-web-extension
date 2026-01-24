@@ -72,4 +72,16 @@ document.addEventListener("DOMContentLoaded", () => {
       top: 60,
     });
   };
+
+  // Button 4: View History (compact)
+  document.getElementById("btn-history").onclick = () => {
+    chrome.windows.create({
+      url: chrome.runtime.getURL("history.html"),
+      type: "popup",
+      width: 780,
+      height: 600,
+      left: 200,
+      top: 120,
+    });
+  };  
 });
