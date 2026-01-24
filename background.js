@@ -1,62 +1,72 @@
-let requestHistory = [];
+// background.js (Manifest V3)
+// Behavior:
+// - Keep the NEW tab
+// - Close EXISTING duplicate tabs
+// - Trigger only when URL is fully resolved
 
-const MAX_HISTORY = 1500;
+/**
+ * Normalize URLs so duplicates are detected consistently.
+ * You can customize this depending on how strict you want it.
+ */
+function normalizeUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl);
 
-chrome.webRequest.onBeforeRequest.addListener(
-  (details) => {
-    const entry = {
-      id: details.requestId,
-      time: new Date().toISOString(),
-      method: details.method || "GET",
-      url: details.url,
-      type: details.type || "other",
-      tabId: details.tabId,
-      initiator: details.initiator || details.originUrl || null,
-      status: null, // will be filled later
-    };
+    // Remove hash (#section)
+    url.hash = "";
 
-    requestHistory.push(entry);
+    // OPTIONAL: remove query params
+    // url.search = "";
 
-    // Keep size under control (oldest first)
-    if (requestHistory.length > MAX_HISTORY) {
-      requestHistory.shift();
-    }
-  },
-  { urls: ["<all_urls>"] },
-  ["extraHeaders"]
-);
+    // Normalize trailing slash
+    url.pathname = url.pathname.replace(/\/$/, "");
 
-chrome.webRequest.onCompleted.addListener(
-  (details) => {
-    const entry = requestHistory.find((r) => r.id === details.requestId);
-    if (entry) {
-      entry.status = details.statusCode;
-      entry.timeCompleted = new Date().toISOString();
-    }
-  },
-  { urls: ["<all_urls>"] },
-  ["extraHeaders"]
-);
-
-chrome.webRequest.onErrorOccurred.addListener(
-  (details) => {
-    const entry = requestHistory.find((r) => r.id === details.requestId);
-    if (entry) {
-      entry.status = "ERROR";
-      entry.error = details.error;
-      entry.timeCompleted = new Date().toISOString();
-    }
-  },
-  { urls: ["<all_urls>"] }
-);
-
-// Communication with popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "getNetworkHistory") {
-    sendResponse({ history: [...requestHistory].reverse() }); // newest first
-  } else if (message.action === "clearNetworkHistory") {
-    requestHistory = [];
-    sendResponse({ success: true });
+    return url.toString();
+  } catch {
+    return null;
   }
-  return true; // keep channel open for async response
+}
+
+/**
+ * Returns true if this URL should be ignored.
+ */
+function shouldIgnoreUrl(url) {
+  return (
+    !url ||
+    url.startsWith("chrome://") ||
+    url.startsWith("chrome-extension://") ||
+    url.startsWith("about:")
+  );
+}
+
+/**
+ * Main duplicate detection logic
+ */
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // Only act once the tab is fully loaded
+  if (changeInfo.status !== "complete") return;
+  if (!tab.url || shouldIgnoreUrl(tab.url)) return;
+
+  const normalizedNewUrl = normalizeUrl(tab.url);
+  if (!normalizedNewUrl) return;
+
+  const allTabs = await chrome.tabs.query({});
+
+  for (const existingTab of allTabs) {
+    if (
+      existingTab.id === tab.id || // never touch the new tab
+      !existingTab.url ||
+      shouldIgnoreUrl(existingTab.url)
+    ) {
+      continue;
+    }
+
+    const normalizedExistingUrl = normalizeUrl(existingTab.url);
+    if (!normalizedExistingUrl) continue;
+
+    if (normalizedExistingUrl === normalizedNewUrl) {
+      // Close the OLD tab
+      chrome.tabs.remove(existingTab.id);
+    }
+  }
 });
