@@ -1,6 +1,42 @@
 document.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("status");
 
+  // ADDITIONS FOR DEDUP TOGGLE AND MANUAL BUTTON
+  const toggle = document.getElementById("toggle-dedup");
+  const dedupBtn = document.getElementById("btn-dedup-now");
+
+  // Load saved toggle state
+  chrome.storage.local.get("urlDedupEnabled", (res) => {
+    toggle.checked = res.urlDedupEnabled !== false; // default ON
+  });
+
+  // Toggle auto dedup
+  toggle.addEventListener("change", () => {
+    chrome.runtime.sendMessage({
+      type: "SET_DEDUP_ENABLED",
+      enabled: toggle.checked,
+    });
+  });
+
+  // Manual dedup button
+  dedupBtn.onclick = async () => {
+    const [activeTab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+
+    chrome.runtime.sendMessage(
+      {
+        type: "MANUAL_DEDUP",
+        activeTabId: activeTab?.id ?? null,
+      },
+      () => {
+        status.textContent = "Duplicate tabs cleaned ✓";
+        status.style.color = "green";
+      },
+    );
+  };
+
   // Button 1: Open tabs list
   document.getElementById("btn-tabs").onclick = () => {
     chrome.windows.create({
@@ -83,5 +119,5 @@ document.addEventListener("DOMContentLoaded", () => {
       left: 200,
       top: 120,
     });
-  };  
+  };
 });

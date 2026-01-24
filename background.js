@@ -1,72 +1,75 @@
 // background.js (Manifest V3)
-// Behavior:
-// - Keep the NEW tab
-// - Close EXISTING duplicate tabs
-// - Trigger only when URL is fully resolved
+
+import { normalizeUrl, shouldIgnoreUrl } from "./utils/urlUtils.js";
+
+const SETTINGS_KEY = "urlDedupEnabled";
 
 /**
- * Normalize URLs so duplicates are detected consistently.
- * You can customize this depending on how strict you want it.
+ * Check if deduplication is enabled
  */
-function normalizeUrl(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
+async function isDedupEnabled() {
+  const result = await chrome.storage.local.get(SETTINGS_KEY);
+  return result[SETTINGS_KEY] !== false; // default ON
+}
 
-    // Remove hash (#section)
-    url.hash = "";
+/**
+ * Core deduplication logic
+ * @param {number|null} preferredTabId - tab to KEEP if duplicate exists
+ */
+async function deduplicateTabs(preferredTabId = null) {
+  const tabs = await chrome.tabs.query({});
+  const seen = new Map(); // normalizedUrl -> tabId to keep
 
-    // OPTIONAL: remove query params
-    // url.search = "";
+  for (const tab of tabs) {
+    if (!tab.url || shouldIgnoreUrl(tab.url)) continue;
 
-    // Normalize trailing slash
-    url.pathname = url.pathname.replace(/\/$/, "");
+    const normalized = normalizeUrl(tab.url);
+    if (!normalized) continue;
 
-    return url.toString();
-  } catch {
-    return null;
+    if (!seen.has(normalized)) {
+      seen.set(normalized, tab.id);
+      continue;
+    }
+
+    const existingTabId = seen.get(normalized);
+
+    // If preferred tab exists, always keep it
+    if (preferredTabId && tab.id === preferredTabId) {
+      chrome.tabs.remove(existingTabId);
+      seen.set(normalized, tab.id);
+    } else if (preferredTabId && existingTabId === preferredTabId) {
+      chrome.tabs.remove(tab.id);
+    } else {
+      // Default: keep the newer tab
+      chrome.tabs.remove(existingTabId);
+      seen.set(normalized, tab.id);
+    }
   }
 }
 
 /**
- * Returns true if this URL should be ignored.
- */
-function shouldIgnoreUrl(url) {
-  return (
-    !url ||
-    url.startsWith("chrome://") ||
-    url.startsWith("chrome-extension://") ||
-    url.startsWith("about:")
-  );
-}
-
-/**
- * Main duplicate detection logic
+ * Auto-dedup on tab update
  */
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Only act once the tab is fully loaded
   if (changeInfo.status !== "complete") return;
   if (!tab.url || shouldIgnoreUrl(tab.url)) return;
+  if (!(await isDedupEnabled())) return;
 
-  const normalizedNewUrl = normalizeUrl(tab.url);
-  if (!normalizedNewUrl) return;
+  await deduplicateTabs(tab.id);
+});
 
-  const allTabs = await chrome.tabs.query({});
+/**
+ * Popup → background messaging
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === "MANUAL_DEDUP") {
+    deduplicateTabs(message.activeTabId).then(() => {
+      sendResponse({ ok: true });
+    });
+    return true; // async response
+  }
 
-  for (const existingTab of allTabs) {
-    if (
-      existingTab.id === tab.id || // never touch the new tab
-      !existingTab.url ||
-      shouldIgnoreUrl(existingTab.url)
-    ) {
-      continue;
-    }
-
-    const normalizedExistingUrl = normalizeUrl(existingTab.url);
-    if (!normalizedExistingUrl) continue;
-
-    if (normalizedExistingUrl === normalizedNewUrl) {
-      // Close the OLD tab
-      chrome.tabs.remove(existingTab.id);
-    }
+  if (message.type === "SET_DEDUP_ENABLED") {
+    chrome.storage.local.set({ [SETTINGS_KEY]: message.enabled });
   }
 });

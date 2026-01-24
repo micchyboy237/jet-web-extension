@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -78,14 +78,14 @@
     <div class="controls">
       <input id="search" type="text" placeholder="Search title or URL..." />
       <select id="filter">
+        <option value="http" selected>HTTP/HTTPS only</option>
         <option value="all">All tabs</option>
-        <option value="http">HTTP/HTTPS only</option>
         <option value="chrome">chrome:// only</option>
       </select>
     </div>
 
     <ul id="tabList"></ul>
 
-    <script src="tabs.js"></script>
+    <script type="module" src="tabs.js"></script>
   </body>
 </html>

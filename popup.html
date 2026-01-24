@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -58,6 +58,15 @@
   </head>
   <body>
     <h1>Jet Tools</h1>
+
+    <label
+      style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px"
+    >
+      <input type="checkbox" id="toggle-dedup" />
+      <span>Auto close duplicate tabs</span>
+    </label>
+
+    <button id="btn-dedup-now">Deduplicate Tabs Now</button>
 
     <button id="btn-tabs">View Open Tabs</button>
     <button id="btn-copy-html">Copy Current Tab HTML</button>

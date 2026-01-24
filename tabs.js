@@ -1,3 +1,5 @@
+import { isHttpUrl } from "./utils/urlUtils.js";
+
 document.addEventListener("DOMContentLoaded", async () => {
   const searchInput = document.getElementById("search");
   const filterSelect = document.getElementById("filter");
@@ -12,7 +14,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Sort by most recently active first (optional improvement #2)
     allTabs.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
 
-    renderTabs(allTabs);
+    filterTabs(); // apply default filter
   }
 
   function renderTabs(tabs) {
@@ -72,16 +74,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       filtered = filtered.filter(
         (t) =>
           (t.title || "").toLowerCase().includes(term) ||
-          (t.url || "").toLowerCase().includes(term)
+          (t.url || "").toLowerCase().includes(term),
       );
     }
 
     if (filter === "http") {
-      filtered = filtered.filter(
-        (t) => t.url.startsWith("http://") || t.url.startsWith("https://")
-      );
+      // Hardened filter: safe and reusable using isHttpUrl from utils
+      filtered = filtered.filter((t) => isHttpUrl(t.url));
     } else if (filter === "chrome") {
-      filtered = filtered.filter((t) => t.url.startsWith("chrome://"));
+      filtered = filtered.filter((t) => t.url?.startsWith("chrome://"));
     }
 
     renderTabs(filtered);
