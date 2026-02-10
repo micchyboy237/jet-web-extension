@@ -1,9 +1,76 @@
 document.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("status");
+  const zoomSelect = document.getElementById("zoom-select");
+  const resetZoomBtn = document.getElementById("btn-reset-zoom");
 
   // ADDITIONS FOR DEDUP TOGGLE AND MANUAL BUTTON
   const toggle = document.getElementById("toggle-dedup");
   const dedupBtn = document.getElementById("btn-dedup-now");
+
+  // ── Zoom control ────────────────────────────────────────────────
+  async function updateZoomSelect() {
+    try {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (!tab?.id) return;
+
+      const currentZoom = await chrome.tabs.getZoom(tab.id);
+      const value = currentZoom === 0 ? "0" : currentZoom.toString();
+
+      // Try exact match, fallback to first option if no match
+      zoomSelect.value = Array.from(zoomSelect.options).some(
+        (opt) => opt.value === value,
+      )
+        ? value
+        : "1"; // fallback to 100%
+    } catch (err) {
+      console.warn("Could not read current zoom", err);
+      zoomSelect.value = "1";
+    }
+  }
+
+  async function applyZoom(value) {
+    try {
+      const zoom = parseFloat(value);
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (!tab?.id) throw new Error("No active tab");
+
+      await chrome.tabs.setZoom(tab.id, zoom);
+
+      // Special handling for reset: force select to show "Reset to default"
+      if (value === "0" && zoomSelect) {
+        zoomSelect.value = "0";
+      }
+
+      status.textContent = `Zoom set to ${value === "0" ? "default" : zoom * 100 + "%"} ✓`;
+      status.style.color = "green";
+    } catch (err) {
+      console.error("Zoom change failed:", err);
+      status.textContent = "Could not change zoom (internal page?)";
+      status.style.color = "red";
+    }
+  }
+
+  // Zoom listeners & init
+  if (zoomSelect) {
+    updateZoomSelect();
+
+    zoomSelect.addEventListener("change", (e) => {
+      applyZoom(e.target.value);
+    });
+  }
+
+  // Reset zoom button
+  if (resetZoomBtn) {
+    resetZoomBtn.onclick = () => {
+      applyZoom("0");
+    };
+  }
 
   // Load saved toggle state
   chrome.storage.local.get("urlDedupEnabled", (res) => {
