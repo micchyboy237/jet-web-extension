@@ -80,6 +80,44 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.metaKey) {
+        let zoomValue = null;
+
+        switch (e.code) {
+          case "Digit1":
+            zoomValue = "0.8"; // ⌘+1 → 80%
+            break;
+          case "Digit2":
+            zoomValue = "1"; // ⌘+2 → 100%
+            break;
+          case "Digit3":
+            zoomValue = "1.5"; // ⌘+3 → 150%
+            break;
+          case "Digit4":
+            zoomValue = "2"; // ⌘+4 → 200%
+            break;
+        }
+
+        if (zoomValue) {
+          const radio = document.querySelector(
+            `input[name="zoom-level"][value="${zoomValue}"]`,
+          );
+          if (radio) {
+            // Optional: small debug confirmation
+            // console.log(`Keyboard zoom activated: ${zoomValue} via ${e.code}`);
+            radio.checked = true;
+            radio.dispatchEvent(new Event("change", { bubbles: true }));
+            e.preventDefault();
+          }
+        }
+      }
+    });
+
+    // Force popup to receive keyboard focus immediately (keep this)
+    window.focus();
+    document.body.focus();
   }
 
   if (resetZoomBtn) {

@@ -17,6 +17,21 @@
   "action": {
     "default_popup": "popup.html"
   },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J",
+        "mac": "Command+Shift+J"
+      },
+      "description": "Open Jet Tools popup"
+    },
+    "deduplicate-now": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+D"
+      },
+      "description": "Deduplicate tabs now"
+    }
+  },
   "web_accessible_resources": [
     {
       "resources": [
