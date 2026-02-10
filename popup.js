@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const status = document.getElementById("status");
-  const zoomSelect = document.getElementById("zoom-select");
+  const zoomRadios = document.querySelectorAll('input[name="zoom-level"]');
   const resetZoomBtn = document.getElementById("btn-reset-zoom");
 
   // ADDITIONS FOR DEDUP TOGGLE AND MANUAL BUTTON
@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const dedupBtn = document.getElementById("btn-dedup-now");
 
   // ── Zoom control ────────────────────────────────────────────────
-  async function updateZoomSelect() {
+  async function updateZoomUI() {
     try {
       const [tab] = await chrome.tabs.query({
         active: true,
@@ -17,23 +17,32 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!tab?.id) return;
 
       const currentZoom = await chrome.tabs.getZoom(tab.id);
-      const value = currentZoom === 0 ? "0" : currentZoom.toString();
 
-      // Try exact match, fallback to first option if no match
-      zoomSelect.value = Array.from(zoomSelect.options).some(
-        (opt) => opt.value === value,
-      )
-        ? value
-        : "1"; // fallback to 100%
+      let bestMatch = "0.8";
+      let minDiff = Infinity;
+
+      zoomRadios.forEach((radio) => {
+        const val = parseFloat(radio.value);
+        const diff = Math.abs(val - currentZoom);
+        if (diff < minDiff) {
+          minDiff = diff;
+          bestMatch = radio.value;
+        }
+      });
+
+      document.querySelector(
+        `input[name="zoom-level"][value="${bestMatch}"]`,
+      ).checked = true;
     } catch (err) {
-      console.warn("Could not read current zoom", err);
-      zoomSelect.value = "1";
+      console.warn("Could not read current zoom:", err);
+      document.querySelector('input[name="zoom-level"][value="0.8"]').checked =
+        true;
     }
   }
 
-  async function applyZoom(value) {
+  async function applyZoom(zoomFactor) {
     try {
-      const zoom = parseFloat(value);
+      const zoom = parseFloat(zoomFactor);
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
@@ -42,12 +51,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       await chrome.tabs.setZoom(tab.id, zoom);
 
-      // Special handling for reset: force select to show "Reset to default"
-      if (value === "0" && zoomSelect) {
-        zoomSelect.value = "0";
+      // After reset we show the 80% radio (user's default)
+      if (zoomFactor === "0") {
+        document.querySelector(
+          'input[name="zoom-level"][value="0.8"]',
+        ).checked = true;
       }
 
-      status.textContent = `Zoom set to ${value === "0" ? "default" : zoom * 100 + "%"} ✓`;
+      const displayText =
+        zoomFactor === "0" ? "default (80%)" : (zoom * 100).toFixed(0) + "%";
+      status.textContent = `Zoom set to ${displayText} ✓`;
       status.style.color = "green";
     } catch (err) {
       console.error("Zoom change failed:", err);
@@ -57,15 +70,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Zoom listeners & init
-  if (zoomSelect) {
-    updateZoomSelect();
+  if (zoomRadios.length > 0) {
+    updateZoomUI();
 
-    zoomSelect.addEventListener("change", (e) => {
-      applyZoom(e.target.value);
+    zoomRadios.forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        if (e.target.checked) {
+          applyZoom(e.target.value);
+        }
+      });
     });
   }
 
-  // Reset zoom button
   if (resetZoomBtn) {
     resetZoomBtn.onclick = () => {
       applyZoom("0");

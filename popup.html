@@ -81,42 +81,88 @@
     <button id="btn-history">View History</button>
     <button id="btn-network">Network History</button>
 
-    <label
-      style="
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin: 20px 0 10px;
-        font-weight: 500;
-        font-size: 1.05rem;
-      "
-    >
-      <span style="font-size: 1.3rem">🔍</span>
-      <span>Page Zoom:</span>
-      <select
-        id="zoom-select"
+    <div style="margin: 20px 0 10px">
+      <div
         style="
-          padding: 8px 12px;
-          border-radius: 8px;
-          border: 1px solid #ccc;
-          font-size: 1rem;
-          flex: 1;
-          min-width: 140px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 500;
+          margin-bottom: 8px;
         "
       >
-        <option value="0">Reset to default</option>
-        <option value="0.5">50%</option>
-        <option value="0.75">75%</option>
-        <option value="1">100%</option>
-        <option value="1.25">125%</option>
-        <option value="1.5">150%</option>
-        <option value="2">200%</option>
-      </select>
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>Page Zoom</span>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 12px 20px">
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+          "
+        >
+          <input type="radio" name="zoom-level" value="0.8" />
+          80%
+        </label>
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+          "
+        >
+          <input type="radio" name="zoom-level" value="1" checked />
+          100%
+        </label>
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+          "
+        >
+          <input type="radio" name="zoom-level" value="1.5" />
+          150%
+        </label>
+        <label
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+          "
+        >
+          <input type="radio" name="zoom-level" value="2" />
+          200%
+        </label>
+      </div>
 
       <button
         id="btn-reset-zoom"
-        title="Reset to your default zoom (currently 80%)"
+        title="Reset to your default zoom"
         style="
+          margin-top: 12px;
           width: 36px;
           height: 36px;
           padding: 0;
@@ -125,7 +171,6 @@
           color: white;
           border: none;
           cursor: pointer;
-          flex-shrink: 0;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -146,7 +191,7 @@
           <path d="M3 3v5h5" />
         </svg>
       </button>
-    </label>
+    </div>
 
     <div id="status"></div>
 
