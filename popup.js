@@ -235,8 +235,8 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.windows.create({
       url: chrome.runtime.getURL("history.html"),
       type: "popup",
-      width: 600,
-      height: 500,
+      width: 780,
+      height: 600,
       left: 200,
       top: 120,
     });
@@ -257,8 +257,8 @@ document.addEventListener("DOMContentLoaded", () => {
       chrome.windows.create({
         url: chrome.runtime.getURL(`summarization.html?tabId=${tab.id}`),
         type: "popup",
-        width: 820,
-        height: 640,
+        width: 500,
+        height: 400,
         left: 150,
         top: 100,
       });
