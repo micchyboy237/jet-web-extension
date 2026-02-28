@@ -235,10 +235,33 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.windows.create({
       url: chrome.runtime.getURL("history.html"),
       type: "popup",
-      width: 780,
-      height: 600,
+      width: 600,
+      height: 500,
       left: 200,
       top: 120,
     });
   };
+
+  // Button 5: Summarize Page (opens detached window)
+  const summarizeBtn = document.getElementById("btn-summarize");
+
+  if (summarizeBtn) {
+    summarizeBtn.onclick = async () => {
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      if (!tab?.id) return;
+
+      chrome.windows.create({
+        url: chrome.runtime.getURL(`summarization.html?tabId=${tab.id}`),
+        type: "popup",
+        width: 820,
+        height: 640,
+        left: 150,
+        top: 100,
+      });
+    };
+  }
 });

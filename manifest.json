@@ -40,7 +40,9 @@
         "network.html",
         "network.js",
         "history.html",
-        "history.js"
+        "history.js",
+        "summarization.html",
+        "summarization.js"
       ],
       "matches": ["<all_urls>"]
     }
