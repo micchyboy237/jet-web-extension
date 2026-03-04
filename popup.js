@@ -264,4 +264,19 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
   }
+
+  // Button 6: Show Links Tree (opens detached window)
+  document.getElementById("btn-links-tree").onclick = () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+      if (!tab?.id) return;
+      chrome.windows.create({
+        url: chrome.runtime.getURL(`links-tree.html?tabId=${tab.id}`),
+        type: "popup",
+        width: 720,
+        height: 680,
+        left: 160,
+        top: 80,
+      });
+    });
+  };
 });

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Links Tree – Jet Extension</title>
+    <style>
+      :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --bg: #f8fafc;
+        --text: #1e293b;
+        --muted: #64748b;
+        --border: #e2e8f0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-width: 680px;
+      }
+      h1 {
+        margin: 0 0 1.4rem;
+        font-size: 1.7rem;
+        font-weight: 800;
+        text-align: center;
+        letter-spacing: -0.4px;
+      }
+      .filters {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 20px;
+        margin-bottom: 24px;
+        padding: 16px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .filter-group label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 6px;
+        color: var(--muted);
+      }
+      input[type="checkbox"] {
+        margin-right: 8px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        resize: vertical;
+        font-family: inherit;
+      }
+      button#btn-refresh {
+        grid-column: span 2;
+        justify-self: center;
+        min-width: 180px;
+        padding: 12px 24px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button#btn-refresh:hover {
+        background: var(--primary-dark);
+      }
+      #status {
+        text-align: center;
+        margin: 16px 0;
+        color: var(--muted);
+      }
+      .tree-container {
+        background: white;
+        border-radius: 10px;
+        padding: 16px;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+      }
+      /* ── Pure CSS Tree ─────────────────────────────────────── */
+      .tree ul {
+        list-style: none;
+        padding-left: 1.4em;
+        position: relative;
+      }
+      .tree li {
+        margin: 0.4em 0;
+        position: relative;
+      }
+      .tree .collapsible > .toggle {
+        cursor: pointer;
+        user-select: none;
+        display: inline-block;
+        width: 1.1em;
+        text-align: center;
+        margin-right: 0.3em;
+        color: var(--primary);
+        font-weight: bold;
+      }
+      .tree .collapsible > .toggle::before {
+        content: "▶";
+        display: inline-block;
+        transition: transform 0.18s;
+      }
+      .tree .collapsible[open] > .toggle::before {
+        transform: rotate(90deg);
+      }
+      .tree details.collapsible {
+        margin: 0;
+      }
+      .tree details.collapsible[open] > summary {
+        list-style: none;
+      }
+      .tree summary {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 0.35em;
+      }
+      .tree a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+      .tree a:hover {
+        text-decoration: underline;
+        color: var(--primary-dark);
+      }
+      .empty {
+        color: #94a3b8;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Links Tree</h1>
+
+    <div class="filters">
+      <div class="filter-group">
+        <label>
+          <input type="checkbox" id="include-external" />
+          Include external links
+        </label>
+      </div>
+      <div class="filter-group">
+        <label for="include-patterns"
+          >Include patterns (one per line, fnmatch)</label
+        >
+        <textarea
+          id="include-patterns"
+          placeholder="*docs/*&#10;*.pdf"
+        ></textarea>
+      </div>
+      <div class="filter-group">
+        <label for="exclude-patterns"
+          >Exclude patterns (one per line, fnmatch)</label
+        >
+        <textarea
+          id="exclude-patterns"
+          placeholder="*login*&#10;*/auth/*"
+        ></textarea>
+      </div>
+      <div class="filter-group">
+        <label for="include-selectors"
+          >Include links inside elements matching these CSS selectors (one per
+          line)</label
+        >
+        <textarea
+          id="include-selectors"
+          rows="3"
+          placeholder=".article-body&#10;#main-content&#10;section:has(h2:contains('Resources'))"
+        ></textarea>
+      </div>
+      <div class="filter-group">
+        <label for="exclude-selectors"
+          >Exclude links inside elements matching these CSS selectors (one per
+          line)</label
+        >
+        <textarea
+          id="exclude-selectors"
+          rows="3"
+          placeholder=".footer&#10;.social-links&#10;aside.advertisement"
+        ></textarea>
+      </div>
+      <button id="btn-refresh">Apply Filters & Refresh</button>
+    </div>
+
+    <div id="status">Loading current page links...</div>
+
+    <div class="tree-container">
+      <div id="tree" class="tree"></div>
+    </div>
+
+    <script src="links-tree.js"></script>
+  </body>
+</html>

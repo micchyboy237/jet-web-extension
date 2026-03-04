@@ -42,7 +42,9 @@
         "history.html",
         "history.js",
         "summarization.html",
-        "summarization.js"
+        "summarization.js",
+        "links-tree.html",
+        "links-tree.js"
       ],
       "matches": ["<all_urls>"]
     }
