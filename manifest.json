@@ -44,7 +44,8 @@
         "summarization.html",
         "summarization.js",
         "links-tree.html",
-        "links-tree.js"
+        "links-tree.js",
+        "vendor/js-beautify/beautify-html.min.js"
       ],
       "matches": ["<all_urls>"]
     }

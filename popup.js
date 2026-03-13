@@ -183,33 +183,54 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (!tab?.id) throw new Error("No active tab found");
 
-      // Handle protected/internal browser pages gracefully
+      // Block protected/internal browser pages
       if (
         tab.url?.startsWith("chrome://") ||
         tab.url?.startsWith("edge://") ||
+        tab.url?.startsWith("about:") ||
         tab.url?.startsWith("opera://") ||
         tab.url?.startsWith("brave://")
       ) {
         status.textContent =
-          "Cannot copy HTML from browser internal pages (chrome://, opera://, edge://, etc.). " +
-          "Please try on a regular website (https://).";
-        status.style.color = "#d97706"; // warning/amber
+          "Cannot copy HTML from internal browser pages (chrome://, opera://, edge://, etc.). Please try on a regular website.";
+        status.style.color = "#d97706";
         return;
       }
 
+      // Step 1: Inject the beautify library for HTML formatting
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["vendor/js-beautify/beautify-html.min.js"],
+      });
+
+      // Step 2: Run the beautification logic
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        func: () => document.documentElement.outerHTML,
+        func: () => {
+          const raw = document.documentElement.outerHTML;
+
+          const pretty = html_beautify(raw, {
+            indent_size: 2,
+            indent_char: " ",
+            max_preserve_newlines: 2,
+            preserve_newlines: true,
+            wrap_line_length: 100,
+            wrap_attributes: "auto",
+            inline: ["svg", "use", "symbol", "foreignObject"],
+            end_with_newline: true,
+          });
+
+          return pretty;
+        },
       });
 
       const html = results[0]?.result;
-      if (typeof html !== "string" || html.length === 0) {
-        throw new Error("Could not retrieve page HTML");
+      if (typeof html !== "string" || html.length < 200) {
+        throw new Error("Could not retrieve meaningful HTML");
       }
 
       await navigator.clipboard.writeText(html);
-
-      status.textContent = "HTML copied to clipboard! ✓";
+      status.textContent = "Pretty HTML copied! ✓";
       status.style.color = "#16a34a";
     } catch (err) {
       console.error("Copy HTML failed:", err);
