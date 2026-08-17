@@ -365,7 +365,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* Init */
   await loadOpenTabs();
 
-  // Initial search with default query (last 24 hours)
+  // Initial search with default query (All time)
   performSearch();
 
   // Refresh open tabs status when tabs change
