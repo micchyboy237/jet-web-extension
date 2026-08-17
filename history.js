@@ -260,7 +260,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       {
         text: searchTerm,
         startTime: getStartTime(timeFilter.value),
-        maxResults: 200,
+        maxResults: 500,
       },
       (items) => {
         historyItems = _dedupeByLatestVisit(items || []);
