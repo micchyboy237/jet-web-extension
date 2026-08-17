@@ -1,12 +1,15 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const list = document.getElementById("list");
-  const searchTitleInput = document.getElementById("search-title");
-  const searchUrlInput = document.getElementById("search-url");
-  const searchModeRadios = document.querySelectorAll(
-    'input[name="search-mode"]',
-  );
-  const timeFilter = document.getElementById("timeRange");
-  const unopenedOnly = document.getElementById("onlyUnopened");
+
+  // Form fields matching chrome.history.search query object
+  const searchTextInput = document.getElementById("search-text");
+  const startTimeInput = document.getElementById("startTime");
+  const endTimeInput = document.getElementById("endTime");
+  const maxResultsInput = document.getElementById("maxResults");
+  const timeRangeSelect = document.getElementById("timeRange");
+  const unopenedOnlyCheckbox = document.getElementById("onlyUnopened");
+
+  const btnSearch = document.getElementById("btn-search");
   const btnOpen = document.getElementById("btn-open");
   const btnDownloadJson = document.getElementById("btn-download-json");
   const totalItemsDisplay = document.getElementById("total-items");
@@ -15,22 +18,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   let openUrls = new Set();
   let currentBatch = 0;
   const batchSize = 20;
-  let searchMode = "title";
-
-  // Toggle search input visibility based on mode
-  searchModeRadios.forEach((radio) => {
-    radio.addEventListener("change", (e) => {
-      searchMode = e.target.value;
-      searchTitleInput.style.display =
-        searchMode === "title" ? "block" : "none";
-      searchUrlInput.style.display = searchMode === "url" ? "block" : "none";
-      applyFilters();
-    });
-  });
-
-  // Initialize search input visibility
-  searchTitleInput.style.display = "block";
-  searchUrlInput.style.display = "none";
 
   /* URL Normalization */
   function normalizeUrl(rawUrl) {
@@ -50,13 +37,51 @@ document.addEventListener("DOMContentLoaded", async () => {
     return tabs.find((t) => t.url && normalizeUrl(t.url) === normalizedUrl);
   }
 
-  /* Helpers */
-  function getStartTime(range) {
+  /* Helpers - Convert datetime-local to milliseconds since epoch */
+  function dateTimeLocalToMs(dateTimeStr) {
+    if (!dateTimeStr) return null;
+    const date = new Date(dateTimeStr);
+    return isNaN(date.getTime()) ? null : date.getTime();
+  }
+
+  /* Get startTime from timeRange preset */
+  function getStartTimeFromPreset(range) {
     const now = Date.now();
     if (range === "1h") return now - 3600_000;
     if (range === "24h") return now - 86400_000;
     if (range === "7d") return now - 604800_000;
-    return 0;
+    if (range === "all") return 0;
+    return null; // custom range
+  }
+
+  /* Build query object from form fields */
+  function buildQueryObject() {
+    const query = {
+      text: searchTextInput.value.trim(),
+      maxResults: parseInt(maxResultsInput.value, 10) || 100,
+    };
+
+    // Ensure maxResults is at least 1
+    if (query.maxResults < 1) query.maxResults = 1;
+
+    // Handle startTime: use preset or custom input
+    const presetStartTime = getStartTimeFromPreset(timeRangeSelect.value);
+    const customStartTime = dateTimeLocalToMs(startTimeInput.value);
+
+    if (timeRangeSelect.value === "custom" && customStartTime !== null) {
+      query.startTime = customStartTime;
+    } else if (presetStartTime !== null) {
+      query.startTime = presetStartTime;
+    }
+    // If neither is set, API defaults to last 24 hours
+
+    // Handle endTime: only if custom end time is provided
+    const customEndTime = dateTimeLocalToMs(endTimeInput.value);
+    if (customEndTime !== null) {
+      query.endTime = customEndTime;
+    }
+
+    return query;
   }
 
   // Group by day
@@ -66,8 +91,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
+
     if (date >= today) return "Today";
     if (date >= yesterday) return "Yesterday";
+
     return date.toLocaleDateString(undefined, {
       weekday: "short",
       month: "short",
@@ -83,6 +110,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!groups[label]) groups[label] = [];
       groups[label].push(item);
     });
+
     // Sort days (Today/Yesterday first, then newest → oldest)
     return Object.entries(groups).sort((a, b) => {
       if (a[0] === "Today") return -1;
@@ -110,6 +138,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* Rendering */
   function render(items) {
     list.innerHTML = "";
+
     if (items.length === 0) {
       list.innerHTML =
         '<p style="text-align:center; color: #9ca3af; padding: 40px 0; font-style: italic;">No web pages found in history.</p>';
@@ -118,7 +147,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const filtered = items.filter((item) => {
       const opened = isOpened(item.url);
-      return !unopenedOnly.checked || !opened;
+      return !unopenedOnlyCheckbox.checked || !opened;
     });
 
     if (filtered.length === 0) {
@@ -140,6 +169,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (batchItems.length === 0) return;
 
     const grouped = groupByDay(batchItems);
+
     grouped.forEach(([dayLabel, dayItems]) => {
       const groupDiv = document.createElement("div");
       groupDiv.className = "day-group";
@@ -158,10 +188,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       dayItems.forEach((item) => {
         const opened = isOpened(item.url);
         const normalized = normalizeUrl(item.url);
+
         let faviconUrl =
           "https://www.google.com/s2/favicons?domain=" +
           encodeURIComponent(new URL(normalized).hostname) +
           "&sz=32";
+
         const fallbackIcon =
           "https://via.placeholder.com/24/cccccc/ffffff?text=🔗";
 
@@ -195,6 +227,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         `;
         groupDiv.appendChild(itemDiv);
       });
+
       list.appendChild(groupDiv);
     });
 
@@ -207,7 +240,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (list.scrollTop + list.clientHeight >= list.scrollHeight - 10) {
       const filtered = historyItems.filter((item) => {
         const opened = isOpened(item.url);
-        return !unopenedOnly.checked || !opened;
+        return !unopenedOnlyCheckbox.checked || !opened;
       });
       loadNextBatch(filtered);
     }
@@ -224,6 +257,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         item.url &&
         (item.url.startsWith("http://") || item.url.startsWith("https://")),
     );
+
     const map = new Map();
     for (const item of validItems) {
       const existing = map.get(item.url);
@@ -231,59 +265,57 @@ document.addEventListener("DOMContentLoaded", async () => {
         map.set(item.url, item);
       }
     }
+
     return Array.from(map.values()).sort(
       (a, b) => b.lastVisitTime - a.lastVisitTime,
     );
   }
 
-  function loadHistory() {
-    chrome.history.search(
-      {
-        text: "",
-        startTime: 0,
-        maxResults: 500,
-      },
-      (items) => {
-        historyItems = _dedupeByLatestVisit(items || []);
-        applyFilters();
-      },
-    );
-  }
+  /* Main search function using query object from form */
+  async function performSearch() {
+    const query = buildQueryObject();
 
-  function applyFilters() {
-    const searchTerm =
-      searchMode === "title"
-        ? searchTitleInput.value.trim().toLowerCase()
-        : searchUrlInput.value.trim().toLowerCase();
+    console.log("Searching with query:", query);
 
-    chrome.history.search(
-      {
-        text: searchTerm,
-        startTime: getStartTime(timeFilter.value),
-        maxResults: 500,
-      },
-      (items) => {
-        historyItems = _dedupeByLatestVisit(items || []);
-        const filteredItems = historyItems.filter((item) => {
-          const matchTerm =
-            searchMode === "title"
-              ? (item.title || "").toLowerCase()
-              : (item.url || "").toLowerCase();
-          return matchTerm.includes(searchTerm);
-        });
-        render(filteredItems);
-      },
-    );
+    try {
+      const items = await chrome.history.search(query);
+      historyItems = _dedupeByLatestVisit(items || []);
+      render(historyItems);
+    } catch (error) {
+      console.error("Error searching history:", error);
+      list.innerHTML = `<p style="text-align:center; color: #ef4444; padding: 40px 0;">Error: ${error.message}</p>`;
+    }
   }
 
   /* Events */
+  // Search button click
+  btnSearch.onclick = performSearch;
+
+  // Also trigger search on Enter key in text input
+  searchTextInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      performSearch();
+    }
+  });
+
+  // Update custom inputs when timeRange changes
+  timeRangeSelect.addEventListener("change", () => {
+    if (timeRangeSelect.value !== "custom") {
+      // Clear custom datetime inputs when using preset
+      startTimeInput.value = "";
+      endTimeInput.value = "";
+    }
+  });
+
   // Handle "go to / open" button clicks (delegated)
   list.addEventListener("click", async (e) => {
     const btn = e.target.closest(".go-btn");
     if (!btn) return;
+
     const url = btn.dataset.url;
     const normalized = normalizeUrl(url);
     const existingTab = await findTabWithUrl(normalized);
+
     if (existingTab) {
       await chrome.tabs.update(existingTab.id, { active: true });
       await chrome.windows.update(existingTab.windowId, { focused: true });
@@ -300,6 +332,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (event.target.tagName === "INPUT" && event.target.type === "checkbox") {
       return;
     }
+
     const checkbox = item.querySelector(".row-check");
     if (checkbox) {
       checkbox.checked = !checkbox.checked;
@@ -310,6 +343,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const urls = [...document.querySelectorAll(".row-check")]
       .filter((c) => c.checked)
       .map((c) => c.dataset.url);
+
     const uniqueNormalizedUrls = [...new Set(urls.map(normalizeUrl))];
     uniqueNormalizedUrls.forEach((url) => {
       chrome.tabs.create({ url, active: false });
@@ -318,20 +352,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Download as JSON
   btnDownloadJson.onclick = () => {
-    const searchTerm =
-      searchMode === "title"
-        ? searchTitleInput.value.trim().toLowerCase()
-        : searchUrlInput.value.trim().toLowerCase();
-
-    const filteredItems = historyItems.filter((item) => {
-      const matchTerm =
-        searchMode === "title"
-          ? (item.title || "").toLowerCase()
-          : (item.url || "").toLowerCase();
-      return matchTerm.includes(searchTerm);
-    });
-
-    const jsonData = JSON.stringify(filteredItems, null, 2);
+    const jsonData = JSON.stringify(historyItems, null, 2);
     const blob = new Blob([jsonData], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -341,14 +362,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     URL.revokeObjectURL(url);
   };
 
-  searchTitleInput.addEventListener("input", applyFilters);
-  searchUrlInput.addEventListener("input", applyFilters);
-  timeFilter.addEventListener("change", applyFilters);
-  unopenedOnly.addEventListener("change", applyFilters);
-
   /* Init */
   await loadOpenTabs();
-  loadHistory();
+
+  // Initial search with default query (last 24 hours)
+  performSearch();
 
   // Refresh open tabs status when tabs change
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {

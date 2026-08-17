@@ -10,6 +10,9 @@
         font-family: system-ui, sans-serif;
         min-width: 560px;
         background: #f8f9fa;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
       }
       h1 {
         margin: 0 0 12px;
@@ -30,21 +33,21 @@
         border: 1px solid #d1d5db;
         font-size: 0.9rem;
       }
-      input {
+      input[type="text"] {
         flex: 1;
-        min-width: 150px;
+        min-width: 200px;
       }
-      .search-mode {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        margin-right: 8px;
+      input[type="number"] {
+        width: 80px;
+      }
+      input[type="datetime-local"] {
+        width: 200px;
       }
       .history-list {
         display: flex;
         flex-direction: column;
         gap: 24px;
-        max-height: 500px;
+        flex: 1;
         overflow-y: auto;
       }
       .day-group {
@@ -166,40 +169,80 @@
         font-size: 0.85rem;
         color: #6b7280;
       }
+      .form-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+        align-items: center;
+      }
+      label {
+        font-size: 0.85rem;
+        color: #4b5563;
+        min-width: 80px;
+      }
     </style>
   </head>
   <body>
     <h1>Visited URL History</h1>
+
+    <!-- Form fields matching chrome.history.search query object -->
     <div class="controls">
-      <div class="search-mode">
-        <label>
-          <input type="radio" name="search-mode" value="title" checked /> Title
-        </label>
-        <label>
-          <input type="radio" name="search-mode" value="url" /> URL
-        </label>
+      <div class="form-row">
+        <label for="search-text">Search:</label>
+        <input
+          id="search-text"
+          type="text"
+          placeholder="Search by title or URL..."
+        />
       </div>
-      <input id="search-title" placeholder="Search by title…" />
-      <input
-        id="search-url"
-        placeholder="Search by URL…"
-        style="display: none"
-      />
-      <select id="timeRange">
-        <option value="all">All time</option>
-        <option value="1h">Last hour</option>
-        <option value="24h">Last 24 hours</option>
-        <option value="7d">Last 7 days</option>
-      </select>
-      <label
-        style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem"
-      >
-        <input type="checkbox" id="onlyUnopened" />
-        Unopened only
-      </label>
-      <div id="total-items">Found: 0 items</div>
+
+      <div class="form-row">
+        <label for="startTime">Start:</label>
+        <input id="startTime" type="datetime-local" />
+        <select id="timeRange">
+          <option value="custom">Custom range</option>
+          <option value="1h">Last hour</option>
+          <option value="24h" selected>Last 24 hours</option>
+          <option value="7d">Last 7 days</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label for="endTime">End:</label>
+        <input id="endTime" type="datetime-local" />
+      </div>
+
+      <div class="form-row">
+        <label for="maxResults">Max results:</label>
+        <input id="maxResults" type="number" value="100" min="1" max="10000" />
+      </div>
+
+      <div class="form-row">
+        <label></label>
+        <label style="display: flex; align-items: center; gap: 6px">
+          <input type="checkbox" id="onlyUnopened" />
+          Unopened only (client-side)
+        </label>
+        <div id="total-items">Found: 0 items</div>
+      </div>
     </div>
+
     <div style="margin-bottom: 10px">
+      <button
+        id="btn-search"
+        style="
+          padding: 8px 16px;
+          font-size: 0.9rem;
+          background: #3b82f6;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+        "
+      >
+        Search History
+      </button>
       <button id="btn-open" style="padding: 6px 10px; font-size: 0.85rem">
         Open selected in new tabs
       </button>
@@ -210,6 +253,7 @@
         Download as JSON
       </button>
     </div>
+
     <div class="history-list" id="list"></div>
     <script src="history.js"></script>
   </body>
