@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const endTimeInput = document.getElementById("endTime");
   const maxResultsInput = document.getElementById("maxResults");
   const timeRangeSelect = document.getElementById("timeRange");
+  const uniqueByPathCheckbox = document.getElementById("uniqueByPath");
   const unopenedOnlyCheckbox = document.getElementById("onlyUnopened");
 
   const btnSearch = document.getElementById("btn-search");
@@ -26,6 +27,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       url.hash = "";
       url.searchParams.sort();
       return url.toString();
+    } catch {
+      return rawUrl;
+    }
+  }
+
+  /* Extract URL path without query params and hash */
+  function getUrlPath(rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      // Return protocol + hostname + pathname (no query params, no hash)
+      return `${url.protocol}//${url.hostname}${url.pathname}`;
     } catch {
       return rawUrl;
     }
@@ -271,15 +283,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
   }
 
+  /* Deduplicate by URL path (without query params and hash) */
+  function _dedupeByUrlPath(items) {
+    const validItems = items.filter(
+      (item) =>
+        item.url &&
+        (item.url.startsWith("http://") || item.url.startsWith("https://")),
+    );
+
+    const map = new Map();
+    for (const item of validItems) {
+      const urlPath = getUrlPath(item.url);
+      const existing = map.get(urlPath);
+      if (!existing || item.lastVisitTime > existing.lastVisitTime) {
+        map.set(urlPath, item);
+      }
+    }
+
+    return Array.from(map.values()).sort(
+      (a, b) => b.lastVisitTime - a.lastVisitTime,
+    );
+  }
+
+  /* Main deduplication function based on toggle state */
+  function deduplicateItems(items) {
+    if (uniqueByPathCheckbox.checked) {
+      return _dedupeByUrlPath(items);
+    } else {
+      return _dedupeByLatestVisit(items);
+    }
+  }
+
   /* Main search function using query object from form */
   async function performSearch() {
     const query = buildQueryObject();
 
     console.log("Searching with query:", query);
+    console.log("Unique by path:", uniqueByPathCheckbox.checked);
 
     try {
       const items = await chrome.history.search(query);
-      historyItems = _dedupeByLatestVisit(items || []);
+      historyItems = deduplicateItems(items || []);
       render(historyItems);
     } catch (error) {
       console.error("Error searching history:", error);
@@ -304,6 +348,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Clear custom datetime inputs when using preset
       startTimeInput.value = "";
       endTimeInput.value = "";
+    }
+  });
+
+  // Re-deduplicate and re-render when uniqueByPath toggle changes
+  uniqueByPathCheckbox.addEventListener("change", () => {
+    if (historyItems.length > 0) {
+      // Re-fetch from original API results would be ideal, but for now re-run search
+      performSearch();
     }
   });
 

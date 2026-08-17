@@ -180,6 +180,53 @@
         color: #4b5563;
         min-width: 80px;
       }
+      /* Toggle Switch Styles */
+      .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 44px;
+        height: 24px;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.3s;
+        border-radius: 24px;
+      }
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+      }
+      input:checked + .slider {
+        background-color: #3b82f6;
+      }
+      input:checked + .slider:before {
+        transform: translateX(20px);
+      }
+      .toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #4b5563;
+      }
     </style>
   </head>
   <body>
@@ -220,10 +267,19 @@
 
       <div class="form-row">
         <label></label>
-        <label style="display: flex; align-items: center; gap: 6px">
-          <input type="checkbox" id="onlyUnopened" />
-          Unopened only (client-side)
-        </label>
+        <div style="display: flex; gap: 16px; align-items: center">
+          <label class="toggle-label">
+            <label class="toggle-switch">
+              <input type="checkbox" id="uniqueByPath" checked />
+              <span class="slider"></span>
+            </label>
+            Unique by path
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px">
+            <input type="checkbox" id="onlyUnopened" />
+            Unopened only
+          </label>
+        </div>
         <div id="total-items">Found: 0 items</div>
       </div>
     </div>
