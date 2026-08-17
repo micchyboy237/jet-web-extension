@@ -11,20 +11,18 @@
         min-width: 560px;
         background: #f8f9fa;
       }
-
       h1 {
         margin: 0 0 12px;
         font-size: 1.4rem;
         font-weight: 700;
       }
-
       .controls {
         display: flex;
         gap: 8px;
         margin-bottom: 12px;
         flex-wrap: wrap;
+        align-items: center;
       }
-
       input,
       select {
         padding: 8px 10px;
@@ -32,23 +30,28 @@
         border: 1px solid #d1d5db;
         font-size: 0.9rem;
       }
-
       input {
         flex: 1;
+        min-width: 150px;
       }
-
+      .search-mode {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-right: 8px;
+      }
       .history-list {
         display: flex;
         flex-direction: column;
         gap: 24px;
+        max-height: 500px;
+        overflow-y: auto;
       }
-
       .day-group {
         display: flex;
         flex-direction: column;
         gap: 8px;
       }
-
       .day-header {
         font-size: 1.1rem;
         font-weight: 600;
@@ -56,7 +59,6 @@
         margin: 8px 0 4px;
         padding-left: 4px;
       }
-
       .history-item {
         display: flex;
         align-items: center;
@@ -67,29 +69,25 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         transition: all 0.15s ease;
         cursor: pointer;
-        user-select: none; /* prevent text selection when clicking fast */
+        user-select: none;
       }
-
       .checkbox-col {
         width: 28px;
         flex-shrink: 0;
         display: flex;
         justify-content: center;
       }
-
       .favicon-col {
         width: 32px;
         flex-shrink: 0;
         display: flex;
         align-items: center;
       }
-
       .history-item:hover {
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        background: #f8fafc; /* very light gray for extra feedback */
+        background: #f8fafc;
       }
-
       .favicon {
         width: 24px;
         height: 24px;
@@ -98,26 +96,22 @@
         background: #e5e7eb;
         object-fit: contain;
       }
-
       .item-content {
         flex: 1;
         min-width: 0;
       }
-
       .item-title {
         font-weight: 500;
         margin: 0;
         font-size: 0.95rem;
         line-height: 1.3;
       }
-
       .item-url {
         font-size: 0.8rem;
         color: #6b7280;
         word-break: break-all;
-        pointer-events: none; /* until you make it a real <a> tag */
+        pointer-events: none;
       }
-
       .meta {
         display: flex;
         flex-direction: column;
@@ -126,25 +120,21 @@
         font-size: 0.8rem;
         color: #6b7280;
       }
-
       .status-pill {
         padding: 2px 8px;
         border-radius: 12px;
         font-size: 0.75rem;
         font-weight: 500;
       }
-
       .status-opened {
         background: #d1fae5;
         color: #065f46;
       }
-
       .status-unopened {
         background: #f3f4f6;
         color: #4b5563;
         opacity: 0.85;
       }
-
       .go-btn {
         width: 32px;
         height: 32px;
@@ -160,27 +150,41 @@
         transition: all 0.13s;
         flex-shrink: 0;
       }
-
       .go-btn:hover {
         background: #d1d5db;
         transform: scale(1.08);
       }
-
       .go-btn.opened {
         background: #a7f3d0;
         color: #065f46;
       }
-
       .go-btn.opened:hover {
         background: #6ee7b7;
+      }
+      #total-items {
+        margin-left: auto;
+        font-size: 0.85rem;
+        color: #6b7280;
       }
     </style>
   </head>
   <body>
     <h1>Visited URL History</h1>
-
     <div class="controls">
-      <input id="search" placeholder="Search title or URL…" />
+      <div class="search-mode">
+        <label>
+          <input type="radio" name="search-mode" value="title" checked /> Title
+        </label>
+        <label>
+          <input type="radio" name="search-mode" value="url" /> URL
+        </label>
+      </div>
+      <input id="search-title" placeholder="Search by title…" />
+      <input
+        id="search-url"
+        placeholder="Search by URL…"
+        style="display: none"
+      />
       <select id="timeRange">
         <option value="all">All time</option>
         <option value="1h">Last hour</option>
@@ -193,16 +197,20 @@
         <input type="checkbox" id="onlyUnopened" />
         Unopened only
       </label>
+      <div id="total-items">Found: 0 items</div>
     </div>
-
     <div style="margin-bottom: 10px">
       <button id="btn-open" style="padding: 6px 10px; font-size: 0.85rem">
         Open selected in new tabs
       </button>
+      <button
+        id="btn-download-json"
+        style="padding: 6px 10px; font-size: 0.85rem"
+      >
+        Download as JSON
+      </button>
     </div>
-
     <div class="history-list" id="list"></div>
-
     <script src="history.js"></script>
   </body>
 </html>

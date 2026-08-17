@@ -1,36 +1,56 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const list = document.getElementById("list");
-  const searchInput = document.getElementById("search");
+  const searchTitleInput = document.getElementById("search-title");
+  const searchUrlInput = document.getElementById("search-url");
+  const searchModeRadios = document.querySelectorAll(
+    'input[name="search-mode"]',
+  );
   const timeFilter = document.getElementById("timeRange");
   const unopenedOnly = document.getElementById("onlyUnopened");
   const btnOpen = document.getElementById("btn-open");
+  const btnDownloadJson = document.getElementById("btn-download-json");
+  const totalItemsDisplay = document.getElementById("total-items");
 
   let historyItems = [];
   let openUrls = new Set();
+  let currentBatch = 0;
+  const batchSize = 20;
+  let searchMode = "title";
 
-  /* -------------------------------
-       URL Normalization
-    -------------------------------- */
+  // Toggle search input visibility based on mode
+  searchModeRadios.forEach((radio) => {
+    radio.addEventListener("change", (e) => {
+      searchMode = e.target.value;
+      searchTitleInput.style.display =
+        searchMode === "title" ? "block" : "none";
+      searchUrlInput.style.display = searchMode === "url" ? "block" : "none";
+      applyFilters();
+    });
+  });
+
+  // Initialize search input visibility
+  searchTitleInput.style.display = "block";
+  searchUrlInput.style.display = "none";
+
+  /* URL Normalization */
   function normalizeUrl(rawUrl) {
     try {
       const url = new URL(rawUrl);
-      url.hash = ""; // remove fragment
-      url.searchParams.sort(); // canonicalize param order
+      url.hash = "";
+      url.searchParams.sort();
       return url.toString();
     } catch {
       return rawUrl;
     }
   }
+
   // Find a tab whose normalized url matches the provided url
   async function findTabWithUrl(normalizedUrl) {
     const tabs = await chrome.tabs.query({});
     return tabs.find((t) => t.url && normalizeUrl(t.url) === normalizedUrl);
   }
 
-  /* -------------------------------
-       Helpers
-    -------------------------------- */
-
+  /* Helpers */
   function getStartTime(range) {
     const now = Date.now();
     if (range === "1h") return now - 3600_000;
@@ -39,15 +59,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     return 0;
   }
 
-  // --- New Helpers for grouping by day
-
+  // Group by day
   function getDayLabel(timestamp) {
     const date = new Date(timestamp);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-
     if (date >= today) return "Today";
     if (date >= yesterday) return "Yesterday";
     return date.toLocaleDateString(undefined, {
@@ -89,15 +107,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     return openUrls.has(normalizeUrl(url));
   }
 
-  /* -------------------------------
-       Rendering
-    -------------------------------- */
-
+  /* Rendering */
   function render(items) {
     list.innerHTML = "";
-
-    // console.log("[DEBUG] Rendering items count before filter:", items.length);
-
     if (items.length === 0) {
       list.innerHTML =
         '<p style="text-align:center; color: #9ca3af; padding: 40px 0; font-style: italic;">No web pages found in history.</p>';
@@ -109,86 +121,109 @@ document.addEventListener("DOMContentLoaded", async () => {
       return !unopenedOnly.checked || !opened;
     });
 
-    // console.log("[DEBUG] After unopenedOnly filter:", filtered.length);
-
     if (filtered.length === 0) {
       list.innerHTML =
         '<p style="text-align:center; color: #9ca3af; padding: 40px 0;">No matching unopened web pages.</p>';
       return;
     }
 
-    const grouped = groupByDay(filtered);
-    // console.log("[DEBUG] Groups created:", grouped.length);
+    // Reset batch for new search
+    currentBatch = 0;
+    loadNextBatch(filtered);
+  }
 
+  function loadNextBatch(items) {
+    const startIndex = currentBatch * batchSize;
+    const endIndex = startIndex + batchSize;
+    const batchItems = items.slice(startIndex, endIndex);
+
+    if (batchItems.length === 0) return;
+
+    const grouped = groupByDay(batchItems);
     grouped.forEach(([dayLabel, dayItems]) => {
       const groupDiv = document.createElement("div");
       groupDiv.className = "day-group";
 
-      const header = document.createElement("h2");
-      header.className = "day-header";
-      header.textContent = dayLabel;
-      groupDiv.appendChild(header);
+      // Only add day header if it's the first batch or a new day
+      if (
+        startIndex === 0 ||
+        !document.querySelector(`.day-header:contains("${dayLabel}")`)
+      ) {
+        const header = document.createElement("h2");
+        header.className = "day-header";
+        header.textContent = dayLabel;
+        groupDiv.appendChild(header);
+      }
 
       dayItems.forEach((item) => {
         const opened = isOpened(item.url);
         const normalized = normalizeUrl(item.url);
-
         let faviconUrl =
           "https://www.google.com/s2/favicons?domain=" +
           encodeURIComponent(new URL(normalized).hostname) +
           "&sz=32";
-        // Fallback if google favicon fails
         const fallbackIcon =
           "https://via.placeholder.com/24/cccccc/ffffff?text=🔗";
 
         const itemDiv = document.createElement("div");
         itemDiv.className = "history-item";
-
         itemDiv.innerHTML = `
-            <div class="checkbox-col">
-              <input type="checkbox" class="row-check" data-url="${item.url}">
-            </div>
-            <div class="favicon-col">
-              <img class="favicon" 
-                   src="${faviconUrl}"
-                   onerror="this.src='${fallbackIcon}'; this.onerror=null;"
-                   alt="favicon">
-            </div>
-            <div class="item-content">
-              <div class="item-title">${item.title || "Untitled"}</div>
-              <div class="item-url">${item.url}</div>
-            </div>
-            <div class="meta">
-              <div>${new Date(item.lastVisitTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
-              <span class="status-pill ${opened ? "status-opened" : "status-unopened"}">
-                ${opened ? "Opened ✓" : "Not opened"}
-              </span>
-            </div>
-            <button class="go-btn ${opened ? "opened" : ""}" 
-                    title="${opened ? "Switch to open tab" : "Open in new tab"}"
-                    data-url="${item.url}">
-              ${opened ? "→" : "↗"}
-            </button>
-          `;
+          <div class="checkbox-col">
+            <input type="checkbox" class="row-check" data-url="${item.url}">
+          </div>
+          <div class="favicon-col">
+            <img class="favicon"
+                 src="${faviconUrl}"
+                 onerror="this.src='${fallbackIcon}'; this.onerror=null;"
+                 alt="favicon">
+          </div>
+          <div class="item-content">
+            <div class="item-title">${item.title || "Untitled"}</div>
+            <div class="item-url">${item.url}</div>
+          </div>
+          <div class="meta">
+            <div>${new Date(item.lastVisitTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+            <span class="status-pill ${opened ? "status-opened" : "status-unopened"}">
+              ${opened ? "Opened ✓" : "Not opened"}
+            </span>
+          </div>
+          <button class="go-btn ${opened ? "opened" : ""}"
+                  title="${opened ? "Switch to open tab" : "Open in new tab"}"
+                  data-url="${item.url}">
+            ${opened ? "→" : "↗"}
+          </button>
+        `;
         groupDiv.appendChild(itemDiv);
       });
-
       list.appendChild(groupDiv);
     });
+
+    currentBatch++;
+    updateTotalItems(items.length);
   }
 
-  /* -------------------------------
-       Load + Filter
-    -------------------------------- */
+  // Infinite scroll
+  list.addEventListener("scroll", () => {
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 10) {
+      const filtered = historyItems.filter((item) => {
+        const opened = isOpened(item.url);
+        return !unopenedOnly.checked || !opened;
+      });
+      loadNextBatch(filtered);
+    }
+  });
 
+  function updateTotalItems(count) {
+    totalItemsDisplay.textContent = `Found: ${count} items`;
+  }
+
+  /* Load + Filter */
   function _dedupeByLatestVisit(items) {
-    // Only keep valid web URLs (http/https)
     const validItems = items.filter(
       (item) =>
         item.url &&
         (item.url.startsWith("http://") || item.url.startsWith("https://")),
     );
-
     const map = new Map();
     for (const item of validItems) {
       const existing = map.get(item.url);
@@ -206,42 +241,49 @@ document.addEventListener("DOMContentLoaded", async () => {
       {
         text: "",
         startTime: 0,
-        maxResults: 500, // increase a bit — helps see more when debugging
+        maxResults: 500,
       },
       (items) => {
-        console.log("[DEBUG] Raw history items count:", items?.length || 0);
         historyItems = _dedupeByLatestVisit(items || []);
-        render(historyItems);
+        applyFilters();
       },
     );
   }
 
   function applyFilters() {
+    const searchTerm =
+      searchMode === "title"
+        ? searchTitleInput.value.trim().toLowerCase()
+        : searchUrlInput.value.trim().toLowerCase();
+
     chrome.history.search(
       {
-        text: searchInput.value.trim(),
+        text: searchTerm,
         startTime: getStartTime(timeFilter.value),
         maxResults: 200,
       },
       (items) => {
         historyItems = _dedupeByLatestVisit(items || []);
-        render(historyItems);
+        const filteredItems = historyItems.filter((item) => {
+          const matchTerm =
+            searchMode === "title"
+              ? (item.title || "").toLowerCase()
+              : (item.url || "").toLowerCase();
+          return matchTerm.includes(searchTerm);
+        });
+        render(filteredItems);
       },
     );
   }
 
-  /* -------------------------------
-       Events
-    -------------------------------- */
+  /* Events */
   // Handle "go to / open" button clicks (delegated)
   list.addEventListener("click", async (e) => {
     const btn = e.target.closest(".go-btn");
     if (!btn) return;
-
     const url = btn.dataset.url;
     const normalized = normalizeUrl(url);
     const existingTab = await findTabWithUrl(normalized);
-
     if (existingTab) {
       await chrome.tabs.update(existingTab.id, { active: true });
       await chrome.windows.update(existingTab.windowId, { focused: true });
@@ -252,20 +294,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Make entire row clickable to toggle checkbox
   list.addEventListener("click", (event) => {
-    // Find the nearest .history-item ancestor
     const item = event.target.closest(".history-item");
     if (!item) return;
-    if (event.target.closest(".go-btn")) return; // let go button handle itself
-    // Avoid double-toggle if user clicked the checkbox directly
+    if (event.target.closest(".go-btn")) return;
     if (event.target.tagName === "INPUT" && event.target.type === "checkbox") {
-      return; // let native checkbox handle it
+      return;
     }
-    // Find the checkbox inside this row
     const checkbox = item.querySelector(".row-check");
     if (checkbox) {
       checkbox.checked = !checkbox.checked;
-      // Optional: trigger change event if other code listens to it
-      // checkbox.dispatchEvent(new Event('change', { bubbles: true }));
     }
   });
 
@@ -273,27 +310,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     const urls = [...document.querySelectorAll(".row-check")]
       .filter((c) => c.checked)
       .map((c) => c.dataset.url);
-
-    // Final defense: normalize + deduplicate before opening
     const uniqueNormalizedUrls = [...new Set(urls.map(normalizeUrl))];
-
     uniqueNormalizedUrls.forEach((url) => {
       chrome.tabs.create({ url, active: false });
     });
   };
 
-  searchInput.addEventListener("input", applyFilters);
+  // Download as JSON
+  btnDownloadJson.onclick = () => {
+    const searchTerm =
+      searchMode === "title"
+        ? searchTitleInput.value.trim().toLowerCase()
+        : searchUrlInput.value.trim().toLowerCase();
+
+    const filteredItems = historyItems.filter((item) => {
+      const matchTerm =
+        searchMode === "title"
+          ? (item.title || "").toLowerCase()
+          : (item.url || "").toLowerCase();
+      return matchTerm.includes(searchTerm);
+    });
+
+    const jsonData = JSON.stringify(filteredItems, null, 2);
+    const blob = new Blob([jsonData], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "history_search_results.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  searchTitleInput.addEventListener("input", applyFilters);
+  searchUrlInput.addEventListener("input", applyFilters);
   timeFilter.addEventListener("change", applyFilters);
   unopenedOnly.addEventListener("change", applyFilters);
 
-  /* -------------------------------
-       Init
-    -------------------------------- */
-
+  /* Init */
   await loadOpenTabs();
   loadHistory();
 
-  // Optional: refresh open tabs status when tabs change
+  // Refresh open tabs status when tabs change
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     if (changeInfo.url || changeInfo.status === "complete") {
       await loadOpenTabs();
