@@ -146,28 +146,49 @@ document.addEventListener("DOMContentLoaded", async () => {
     const selected = document.querySelector('input[name="openStatus"]:checked');
     return selected ? selected.value : "all";
   }
+  /* Formatting helpers */
+  function formatDateTime(timestamp) {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    return date.toLocaleString([], {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  function formatISODateTime(timestamp) {
+    if (!timestamp) return "";
+    return new Date(timestamp).toISOString();
+  }
+  function formatVisitStats(item) {
+    const parts = [];
+    if (item.visitCount != null) {
+      parts.push(`${item.visitCount} visit${item.visitCount !== 1 ? "s" : ""}`);
+    }
+    if (item.typedCount != null && item.typedCount > 0) {
+      parts.push(`${item.typedCount} typed`);
+    }
+    return parts.length > 0 ? parts.join(", ") : "";
+  }
   /* Rendering */
   function render(items) {
     list.innerHTML = "";
     const openStatus = getSelectedOpenStatus();
     const hostFilter = hostFilterInput.value.trim().toLowerCase();
-
     const filtered = items.filter((item) => {
       const opened = isOpened(item.url);
-
       // Filter by open status
       if (openStatus === "opened" && !opened) return false;
       if (openStatus === "unopened" && opened) return false;
-
       // Filter by hostname
       if (hostFilter) {
         const hostname = getHostname(item.url).toLowerCase();
         if (!hostname.includes(hostFilter)) return false;
       }
-
       return true;
     });
-
     if (filtered.length === 0) {
       let message = "No web pages found.";
       if (items.length > 0) {
@@ -177,7 +198,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateTotalItems(filtered.length);
       return;
     }
-
     // Reset batch for new search/filter
     currentBatch = 0;
     loadNextBatch(filtered);
@@ -210,6 +230,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           "&sz=32";
         const fallbackIcon =
           "https://via.placeholder.com/24/cccccc/ffffff?text=🔗";
+        const visitDate = formatDateTime(item.lastVisitTime);
+        const visitStats = formatVisitStats(item);
         const itemDiv = document.createElement("div");
         itemDiv.className = "history-item";
         itemDiv.innerHTML = `
@@ -227,7 +249,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             <div class="item-url">${item.url}</div>
           </div>
           <div class="meta">
-            <div>${new Date(item.lastVisitTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+            ${visitDate ? `<div class="visit-date">${visitDate}</div>` : ""}
+            ${visitStats ? `<div class="visit-stats">${visitStats}</div>` : ""}
             <span class="status-pill ${opened ? "status-opened" : "status-unopened"}">
               ${opened ? "Opened ✓" : "Not opened"}
             </span>
@@ -250,23 +273,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (list.scrollTop + list.clientHeight >= list.scrollHeight - 10) {
       const openStatus = getSelectedOpenStatus();
       const hostFilter = hostFilterInput.value.trim().toLowerCase();
-
       const filtered = historyItems.filter((item) => {
         const opened = isOpened(item.url);
-
         // Filter by open status
         if (openStatus === "opened" && !opened) return false;
         if (openStatus === "unopened" && opened) return false;
-
         // Filter by hostname
         if (hostFilter) {
           const hostname = getHostname(item.url).toLowerCase();
           if (!hostname.includes(hostFilter)) return false;
         }
-
         return true;
       });
-
       loadNextBatch(filtered);
     }
   });
@@ -528,10 +546,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Copy JSON to clipboard
   btnCopyJson.onclick = async () => {
     try {
-      // Create array of objects with title and url
+      // Create array of objects with full details including datetime ISO
       const dataToCopy = historyItems.map((item) => ({
         title: item.title || "Untitled",
         url: item.url,
+        lastVisitTime: item.lastVisitTime,
+        lastVisitTimeISO: item.lastVisitTime
+          ? new Date(item.lastVisitTime).toISOString()
+          : null,
+        visitCount: item.visitCount,
+        typedCount: item.typedCount,
       }));
       const jsonString = JSON.stringify(dataToCopy, null, 2);
       // Use navigator.clipboard.writeText which works in extension contexts with clipboardWrite permission
