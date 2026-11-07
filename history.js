@@ -7,11 +7,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const startTimeInput = document.getElementById("startTime");
   const endTimeInput = document.getElementById("endTime");
   const maxResultsInput = document.getElementById("maxResults");
+  const minVisitCountInput = document.getElementById("minVisitCount");
+  const maxVisitCountInput = document.getElementById("maxVisitCount");
   const timeRangeSelect = document.getElementById("timeRange");
   const uniqueByPathCheckbox = document.getElementById("uniqueByPath");
   const openStatusRadios = document.querySelectorAll(
     'input[name="openStatus"]',
   );
+  const sortBySelect = document.getElementById("sortBy");
+  const sortOrderSelect = document.getElementById("sortOrder");
   const btnSearch = document.getElementById("btn-search");
   const btnOpen = document.getElementById("btn-open");
   const btnDownloadJson = document.getElementById("btn-download-json");
@@ -172,12 +176,43 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     return parts.length > 0 ? parts.join(", ") : "";
   }
+  /* Sorting function */
+  function sortItems(items, sortBy, sortOrder) {
+    const sorted = [...items];
+    const multiplier = sortOrder === "asc" ? 1 : -1;
+
+    if (sortBy === "datetime") {
+      sorted.sort((a, b) => {
+        const timeA = a.lastVisitTime || 0;
+        const timeB = b.lastVisitTime || 0;
+        return (timeA - timeB) * multiplier;
+      });
+    } else if (sortBy === "visitCount") {
+      sorted.sort((a, b) => {
+        const countA = a.visitCount || 0;
+        const countB = b.visitCount || 0;
+        return (countA - countB) * multiplier;
+      });
+    }
+
+    return sorted;
+  }
   /* Rendering */
   function render(items) {
     list.innerHTML = "";
     const openStatus = getSelectedOpenStatus();
     const hostFilter = hostFilterInput.value.trim().toLowerCase();
-    const filtered = items.filter((item) => {
+    const minVisitCount = minVisitCountInput.value
+      ? parseInt(minVisitCountInput.value, 10)
+      : null;
+    const maxVisitCount = maxVisitCountInput.value
+      ? parseInt(maxVisitCountInput.value, 10)
+      : null;
+    const sortBy = sortBySelect.value;
+    const sortOrder = sortOrderSelect.value;
+
+    // Apply filters
+    let filtered = items.filter((item) => {
       const opened = isOpened(item.url);
       // Filter by open status
       if (openStatus === "opened" && !opened) return false;
@@ -187,8 +222,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         const hostname = getHostname(item.url).toLowerCase();
         if (!hostname.includes(hostFilter)) return false;
       }
+      // Filter by visit count
+      if (
+        minVisitCount !== null &&
+        item.visitCount != null &&
+        item.visitCount < minVisitCount
+      ) {
+        return false;
+      }
+      if (
+        maxVisitCount !== null &&
+        item.visitCount != null &&
+        item.visitCount > maxVisitCount
+      ) {
+        return false;
+      }
       return true;
     });
+
+    // Apply sorting
+    filtered = sortItems(filtered, sortBy, sortOrder);
+
     if (filtered.length === 0) {
       let message = "No web pages found.";
       if (items.length > 0) {
@@ -273,6 +327,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (list.scrollTop + list.clientHeight >= list.scrollHeight - 10) {
       const openStatus = getSelectedOpenStatus();
       const hostFilter = hostFilterInput.value.trim().toLowerCase();
+      const minVisitCount = minVisitCountInput.value
+        ? parseInt(minVisitCountInput.value, 10)
+        : null;
+      const maxVisitCount = maxVisitCountInput.value
+        ? parseInt(maxVisitCountInput.value, 10)
+        : null;
+      const sortBy = sortBySelect.value;
+      const sortOrder = sortOrderSelect.value;
+
       const filtered = historyItems.filter((item) => {
         const opened = isOpened(item.url);
         // Filter by open status
@@ -283,9 +346,26 @@ document.addEventListener("DOMContentLoaded", async () => {
           const hostname = getHostname(item.url).toLowerCase();
           if (!hostname.includes(hostFilter)) return false;
         }
+        // Filter by visit count
+        if (
+          minVisitCount !== null &&
+          item.visitCount != null &&
+          item.visitCount < minVisitCount
+        ) {
+          return false;
+        }
+        if (
+          maxVisitCount !== null &&
+          item.visitCount != null &&
+          item.visitCount > maxVisitCount
+        ) {
+          return false;
+        }
         return true;
       });
-      loadNextBatch(filtered);
+
+      const sortedFiltered = sortItems(filtered, sortBy, sortOrder);
+      loadNextBatch(sortedFiltered);
     }
   });
   function updateTotalItems(count) {
@@ -496,6 +576,28 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
+  // Visit count filter inputs
+  minVisitCountInput.addEventListener("input", () => {
+    if (historyItems.length > 0) {
+      render(historyItems);
+    }
+  });
+  maxVisitCountInput.addEventListener("input", () => {
+    if (historyItems.length > 0) {
+      render(historyItems);
+    }
+  });
+  // Sort controls
+  sortBySelect.addEventListener("change", () => {
+    if (historyItems.length > 0) {
+      render(historyItems);
+    }
+  });
+  sortOrderSelect.addEventListener("change", () => {
+    if (historyItems.length > 0) {
+      render(historyItems);
+    }
+  });
   // Handle "go to / open" button clicks (delegated)
   list.addEventListener("click", async (e) => {
     const btn = e.target.closest(".go-btn");

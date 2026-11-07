@@ -342,6 +342,26 @@
         <input id="maxResults" type="number" value="100" min="1" max="10000" />
       </div>
       <div class="form-row">
+        <label for="minVisitCount">Min visits:</label>
+        <input
+          id="minVisitCount"
+          type="number"
+          value=""
+          min="0"
+          placeholder="Any"
+        />
+      </div>
+      <div class="form-row">
+        <label for="maxVisitCount">Max visits:</label>
+        <input
+          id="maxVisitCount"
+          type="number"
+          value=""
+          min="0"
+          placeholder="Any"
+        />
+      </div>
+      <div class="form-row">
         <label></label>
         <div style="display: flex; gap: 16px; align-items: center">
           <label class="toggle-label">
@@ -366,6 +386,17 @@
             </label>
           </div>
         </div>
+      </div>
+      <div class="form-row">
+        <label for="sortBy">Sort by:</label>
+        <select id="sortBy">
+          <option value="datetime" selected>Date/Time</option>
+          <option value="visitCount">Visit Count</option>
+        </select>
+        <select id="sortOrder">
+          <option value="desc" selected>Descending</option>
+          <option value="asc">Ascending</option>
+        </select>
       </div>
     </div>
     <div class="toolbar">
