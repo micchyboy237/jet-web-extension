@@ -197,9 +197,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     return sorted;
   }
-  /* Rendering */
-  function render(items) {
-    list.innerHTML = "";
+  /* Centralized Filtering Logic */
+  function getFilteredAndSortedItems(items) {
     const openStatus = getSelectedOpenStatus();
     const hostFilter = hostFilterInput.value.trim().toLowerCase();
     const minVisitCount = minVisitCountInput.value
@@ -242,6 +241,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Apply sorting
     filtered = sortItems(filtered, sortBy, sortOrder);
+    return filtered;
+  }
+  /* Rendering */
+  function render(items) {
+    list.innerHTML = "";
+
+    const filtered = getFilteredAndSortedItems(items);
 
     if (filtered.length === 0) {
       let message = "No web pages found.";
@@ -325,47 +331,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Infinite scroll
   list.addEventListener("scroll", () => {
     if (list.scrollTop + list.clientHeight >= list.scrollHeight - 10) {
-      const openStatus = getSelectedOpenStatus();
-      const hostFilter = hostFilterInput.value.trim().toLowerCase();
-      const minVisitCount = minVisitCountInput.value
-        ? parseInt(minVisitCountInput.value, 10)
-        : null;
-      const maxVisitCount = maxVisitCountInput.value
-        ? parseInt(maxVisitCountInput.value, 10)
-        : null;
-      const sortBy = sortBySelect.value;
-      const sortOrder = sortOrderSelect.value;
-
-      const filtered = historyItems.filter((item) => {
-        const opened = isOpened(item.url);
-        // Filter by open status
-        if (openStatus === "opened" && !opened) return false;
-        if (openStatus === "unopened" && opened) return false;
-        // Filter by hostname
-        if (hostFilter) {
-          const hostname = getHostname(item.url).toLowerCase();
-          if (!hostname.includes(hostFilter)) return false;
-        }
-        // Filter by visit count
-        if (
-          minVisitCount !== null &&
-          item.visitCount != null &&
-          item.visitCount < minVisitCount
-        ) {
-          return false;
-        }
-        if (
-          maxVisitCount !== null &&
-          item.visitCount != null &&
-          item.visitCount > maxVisitCount
-        ) {
-          return false;
-        }
-        return true;
-      });
-
-      const sortedFiltered = sortItems(filtered, sortBy, sortOrder);
-      loadNextBatch(sortedFiltered);
+      const filtered = getFilteredAndSortedItems(historyItems);
+      loadNextBatch(filtered);
     }
   });
   function updateTotalItems(count) {
@@ -636,7 +603,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
   // Download as JSON
   btnDownloadJson.onclick = () => {
-    const jsonData = JSON.stringify(historyItems, null, 2);
+    // Use the filtered/sorted items to match what is shown
+    const itemsToExport = getFilteredAndSortedItems(historyItems);
+    const jsonData = JSON.stringify(itemsToExport, null, 2);
     const blob = new Blob([jsonData], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -648,8 +617,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Copy JSON to clipboard
   btnCopyJson.onclick = async () => {
     try {
+      // Use the filtered/sorted items to match what is shown
+      const itemsToCopy = getFilteredAndSortedItems(historyItems);
+
       // Create array of objects with full details including datetime ISO
-      const dataToCopy = historyItems.map((item) => ({
+      const dataToCopy = itemsToCopy.map((item) => ({
         title: item.title || "Untitled",
         url: item.url,
         lastVisitTime: item.lastVisitTime,
