@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const list = document.getElementById("list");
+  const paginationContainer = document.getElementById("pagination");
   // Form fields matching chrome.history.search query object
   const searchTextInput = document.getElementById("search-text");
   const hostFilterInput = document.getElementById("host-filter");
@@ -16,17 +17,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   );
   const sortBySelect = document.getElementById("sortBy");
   const sortOrderSelect = document.getElementById("sortOrder");
+  // New UI Elements
+  const clearStartBtn = document.getElementById("clear-start");
+  const clearEndBtn = document.getElementById("clear-end");
+  const startTimeWrapper = document.getElementById("start-time-wrapper");
+  const endTimeWrapper = document.getElementById("end-time-wrapper");
+  const btnCheckAll = document.getElementById("btn-check-all");
+  const btnClearAll = document.getElementById("btn-clear-all");
   const btnSearch = document.getElementById("btn-search");
   const btnOpen = document.getElementById("btn-open");
   const btnDownloadJson = document.getElementById("btn-download-json");
   const btnCopyJson = document.getElementById("btn-copy-json");
   const totalItemsDisplay = document.getElementById("total-items");
+
   let historyItems = [];
+  let filteredItems = [];
   let openUrls = new Set();
-  let currentBatch = 0;
-  const batchSize = 20;
+
+  // Pagination State
+  const ITEMS_PER_PAGE = 50;
+  let currentPage = 1;
+
   let availableHosts = [];
   let selectedHostIndex = -1;
+
   /* URL Normalization */
   function normalizeUrl(rawUrl) {
     try {
@@ -38,16 +52,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       return rawUrl;
     }
   }
+
   /* Extract URL path without query params and hash */
   function getUrlPath(rawUrl) {
     try {
       const url = new URL(rawUrl);
-      // Return protocol + hostname + pathname (no query params, no hash)
       return `${url.protocol}//${url.hostname}${url.pathname}`;
     } catch {
       return rawUrl;
     }
   }
+
   /* Extract hostname from URL */
   function getHostname(rawUrl) {
     try {
@@ -57,17 +72,48 @@ document.addEventListener("DOMContentLoaded", async () => {
       return "";
     }
   }
+
   // Find a tab whose normalized url matches the provided url
   async function findTabWithUrl(normalizedUrl) {
     const tabs = await chrome.tabs.query({});
     return tabs.find((t) => t.url && normalizeUrl(t.url) === normalizedUrl);
   }
+
   /* Helpers - Convert datetime-local to milliseconds since epoch */
   function dateTimeLocalToMs(dateTimeStr) {
     if (!dateTimeStr) return null;
-    const date = new Date(dateTimeStr);
-    return isNaN(date.getTime()) ? null : date.getTime();
+
+    // Split into date and time parts
+    const [datePart, timePart] = dateTimeStr.split("T");
+    if (!datePart || !timePart) return null;
+
+    const [year, month, day] = datePart.split("-").map(Number);
+    const timeParts = timePart.split(":");
+
+    const hour = parseInt(timeParts[0], 10);
+    const minute = parseInt(timeParts[1], 10);
+    const second = timeParts.length > 2 ? parseInt(timeParts[2], 10) : 0;
+    const ms = timeParts.length > 3 ? parseInt(timeParts[3], 10) : 0;
+
+    if (
+      isNaN(year) ||
+      isNaN(month) ||
+      isNaN(day) ||
+      isNaN(hour) ||
+      isNaN(minute)
+    ) {
+      return null;
+    }
+
+    // CRITICAL: Use the constructor that takes individual components to ensure
+    // the browser treats it as LOCAL time, not UTC.
+    const date = new Date(year, month - 1, day, hour, minute, second, ms);
+    const timeMs = date.getTime();
+
+    if (isNaN(timeMs)) return null;
+    return timeMs;
   }
+
   /* Get startTime from timeRange preset */
   function getStartTimeFromPreset(range) {
     const now = Date.now();
@@ -75,32 +121,68 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (range === "24h") return now - 86400_000;
     if (range === "7d") return now - 604800_000;
     if (range === "all") return 0;
-    return null; // custom range
+    return null;
   }
+
+  /* Update Clear Button Visibility */
+  function updateClearButtonVisibility() {
+    if (startTimeInput.value) {
+      startTimeWrapper.classList.add("has-value");
+    } else {
+      startTimeWrapper.classList.remove("has-value");
+    }
+    if (endTimeInput.value) {
+      endTimeWrapper.classList.add("has-value");
+    } else {
+      endTimeWrapper.classList.remove("has-value");
+    }
+  }
+
   /* Build query object from form fields */
   function buildQueryObject() {
     const query = {
       text: searchTextInput.value.trim(),
-      maxResults: parseInt(maxResultsInput.value, 10) || 100,
+      maxResults: parseInt(maxResultsInput.value, 10) || 1000,
     };
-    // Ensure maxResults is at least 1
+
     if (query.maxResults < 1) query.maxResults = 1;
-    // Handle startTime: use preset or custom input
+    if (query.maxResults > 10000) query.maxResults = 10000;
+
     const presetStartTime = getStartTimeFromPreset(timeRangeSelect.value);
     const customStartTime = dateTimeLocalToMs(startTimeInput.value);
-    if (timeRangeSelect.value === "custom" && customStartTime !== null) {
-      query.startTime = customStartTime;
-    } else if (presetStartTime !== null) {
-      query.startTime = presetStartTime;
-    }
-    // If neither is set, API defaults to last 24 hours
-    // Handle endTime: only if custom end time is provided
     const customEndTime = dateTimeLocalToMs(endTimeInput.value);
+
+    // Determine effective start time
+    // Priority: Custom Start > Preset Start > 0 (All time) if Custom End is present
+    if (customStartTime !== null) {
+      query.startTime = customStartTime;
+    } else if (timeRangeSelect.value !== "custom" && presetStartTime !== null) {
+      query.startTime = presetStartTime;
+    } else if (customEndTime !== null) {
+      // If user picks an End Date but no Start Date, assume they want to see
+      // everything up to that date, not just the last 24 hours before that date.
+      query.startTime = 0;
+    }
+
+    // Determine effective end time
     if (customEndTime !== null) {
       query.endTime = customEndTime;
     }
+
+    // Safety check: Ensure start is not after end
+    if (query.startTime !== undefined && query.endTime !== undefined) {
+      if (query.startTime > query.endTime) {
+        console.warn(
+          "[Query] Start time is after End time. Adjusting Start to 0.",
+        );
+        query.startTime = 0;
+      }
+    }
+
+    console.log("[Query] Built Query Object:", JSON.stringify(query, null, 2));
     return query;
   }
+
   // Group by day
   function getDayLabel(timestamp) {
     const date = new Date(timestamp);
@@ -117,6 +199,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
     });
   }
+
   function groupByDay(items) {
     const groups = {};
     items.forEach((item) => {
@@ -124,7 +207,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!groups[label]) groups[label] = [];
       groups[label].push(item);
     });
-    // Sort days (Today/Yesterday first, then newest → oldest)
     return Object.entries(groups).sort((a, b) => {
       if (a[0] === "Today") return -1;
       if (b[0] === "Today") return 1;
@@ -133,6 +215,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return b[1][0].lastVisitTime - a[1][0].lastVisitTime;
     });
   }
+
   async function loadOpenTabs() {
     const tabs = await chrome.tabs.query({});
     openUrls = new Set(
@@ -142,14 +225,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         .map(normalizeUrl),
     );
   }
+
   function isOpened(url) {
     return openUrls.has(normalizeUrl(url));
   }
+
   /* Get selected open status from radio buttons */
   function getSelectedOpenStatus() {
     const selected = document.querySelector('input[name="openStatus"]:checked');
     return selected ? selected.value : "all";
   }
+
   /* Formatting helpers */
   function formatDateTime(timestamp) {
     if (!timestamp) return "";
@@ -162,10 +248,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       minute: "2-digit",
     });
   }
-  function formatISODateTime(timestamp) {
-    if (!timestamp) return "";
-    return new Date(timestamp).toISOString();
-  }
+
   function formatVisitStats(item) {
     const parts = [];
     if (item.visitCount != null) {
@@ -176,11 +259,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     return parts.length > 0 ? parts.join(", ") : "";
   }
+
   /* Sorting function */
   function sortItems(items, sortBy, sortOrder) {
     const sorted = [...items];
     const multiplier = sortOrder === "asc" ? 1 : -1;
-
     if (sortBy === "datetime") {
       sorted.sort((a, b) => {
         const timeA = a.lastVisitTime || 0;
@@ -194,9 +277,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         return (countA - countB) * multiplier;
       });
     }
-
     return sorted;
   }
+
   /* Centralized Filtering Logic */
   function getFilteredAndSortedItems(items) {
     const openStatus = getSelectedOpenStatus();
@@ -210,18 +293,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     const sortBy = sortBySelect.value;
     const sortOrder = sortOrderSelect.value;
 
-    // Apply filters
+    const customStartTime = dateTimeLocalToMs(startTimeInput.value);
+    const customEndTime = dateTimeLocalToMs(endTimeInput.value);
+    const presetStartTime = getStartTimeFromPreset(timeRangeSelect.value);
+
+    let effectiveStartTime = null;
+    if (customStartTime !== null) {
+      effectiveStartTime = customStartTime;
+    } else if (timeRangeSelect.value !== "custom" && presetStartTime !== null) {
+      effectiveStartTime = presetStartTime;
+    }
+
+    let effectiveEndTime = null;
+    if (customEndTime !== null) {
+      effectiveEndTime = customEndTime;
+    }
+
     let filtered = items.filter((item) => {
       const opened = isOpened(item.url);
-      // Filter by open status
       if (openStatus === "opened" && !opened) return false;
       if (openStatus === "unopened" && opened) return false;
-      // Filter by hostname
+
       if (hostFilter) {
         const hostname = getHostname(item.url).toLowerCase();
         if (!hostname.includes(hostFilter)) return false;
       }
-      // Filter by visit count
+
       if (
         minVisitCount !== null &&
         item.visitCount != null &&
@@ -236,51 +333,67 @@ document.addEventListener("DOMContentLoaded", async () => {
       ) {
         return false;
       }
+
+      if (
+        effectiveStartTime !== null &&
+        item.lastVisitTime < effectiveStartTime
+      ) {
+        return false;
+      }
+
+      if (effectiveEndTime !== null && item.lastVisitTime > effectiveEndTime) {
+        return false;
+      }
+
       return true;
     });
 
-    // Apply sorting
     filtered = sortItems(filtered, sortBy, sortOrder);
     return filtered;
   }
+
   /* Rendering */
   function render(items) {
     list.innerHTML = "";
+    paginationContainer.innerHTML = "";
 
-    const filtered = getFilteredAndSortedItems(items);
+    filteredItems = getFilteredAndSortedItems(items);
 
-    if (filtered.length === 0) {
+    if (filteredItems.length === 0) {
       let message = "No web pages found.";
       if (items.length > 0) {
         message = "No matching web pages with current filters.";
       }
       list.innerHTML = `<p style="text-align:center; color: #9ca3af; padding: 40px 0; font-style: italic;">${message}</p>`;
-      updateTotalItems(filtered.length);
+      updateTotalItems(filteredItems.length);
       return;
     }
-    // Reset batch for new search/filter
-    currentBatch = 0;
-    loadNextBatch(filtered);
+
+    currentPage = 1;
+    renderPage();
   }
-  function loadNextBatch(items) {
-    const startIndex = currentBatch * batchSize;
-    const endIndex = startIndex + batchSize;
-    const batchItems = items.slice(startIndex, endIndex);
-    if (batchItems.length === 0) return;
-    const grouped = groupByDay(batchItems);
+
+  function renderPage() {
+    list.innerHTML = "";
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const pageItems = filteredItems.slice(startIndex, endIndex);
+
+    if (pageItems.length === 0) {
+      list.innerHTML = `<p style="text-align:center; color: #9ca3af; padding: 40px 0;">No items on this page.</p>`;
+      return;
+    }
+
+    const grouped = groupByDay(pageItems);
     grouped.forEach(([dayLabel, dayItems]) => {
       const groupDiv = document.createElement("div");
       groupDiv.className = "day-group";
-      // Only add day header if it's the first batch or a new day
-      if (
-        startIndex === 0 ||
-        !document.querySelector(`.day-header:contains("${dayLabel}")`)
-      ) {
-        const header = document.createElement("h2");
-        header.className = "day-header";
-        header.textContent = dayLabel;
-        groupDiv.appendChild(header);
-      }
+
+      const header = document.createElement("h2");
+      header.className = "day-header";
+      header.textContent = dayLabel;
+      groupDiv.appendChild(header);
+
       dayItems.forEach((item) => {
         const opened = isOpened(item.url);
         const normalized = normalizeUrl(item.url);
@@ -290,8 +403,10 @@ document.addEventListener("DOMContentLoaded", async () => {
           "&sz=32";
         const fallbackIcon =
           "https://via.placeholder.com/24/cccccc/ffffff?text=🔗";
+
         const visitDate = formatDateTime(item.lastVisitTime);
         const visitStats = formatVisitStats(item);
+
         const itemDiv = document.createElement("div");
         itemDiv.className = "history-item";
         itemDiv.innerHTML = `
@@ -325,19 +440,53 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
       list.appendChild(groupDiv);
     });
-    currentBatch++;
-    updateTotalItems(items.length);
+
+    updateTotalItems(filteredItems.length);
+    renderPaginationControls();
   }
-  // Infinite scroll
-  list.addEventListener("scroll", () => {
-    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 10) {
-      const filtered = getFilteredAndSortedItems(historyItems);
-      loadNextBatch(filtered);
-    }
-  });
+
+  function renderPaginationControls() {
+    paginationContainer.innerHTML = "";
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+
+    if (totalPages <= 1) return;
+
+    const prevBtn = document.createElement("button");
+    prevBtn.className = "page-btn";
+    prevBtn.textContent = "Previous";
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.onclick = () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderPage();
+        list.scrollTop = 0;
+      }
+    };
+    paginationContainer.appendChild(prevBtn);
+
+    const pageInfo = document.createElement("span");
+    pageInfo.className = "page-info";
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+    paginationContainer.appendChild(pageInfo);
+
+    const nextBtn = document.createElement("button");
+    nextBtn.className = "page-btn";
+    nextBtn.textContent = "Next";
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.onclick = () => {
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderPage();
+        list.scrollTop = 0;
+      }
+    };
+    paginationContainer.appendChild(nextBtn);
+  }
+
   function updateTotalItems(count) {
     totalItemsDisplay.textContent = `Found: ${count} items`;
   }
+
   /* Load + Filter */
   function _dedupeByLatestVisit(items) {
     const validItems = items.filter(
@@ -356,7 +505,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       (a, b) => b.lastVisitTime - a.lastVisitTime,
     );
   }
-  /* Deduplicate by URL path (without query params and hash) */
+
   function _dedupeByUrlPath(items) {
     const validItems = items.filter(
       (item) =>
@@ -375,7 +524,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       (a, b) => b.lastVisitTime - a.lastVisitTime,
     );
   }
-  /* Main deduplication function based on toggle state */
+
   function deduplicateItems(items) {
     if (uniqueByPathCheckbox.checked) {
       return _dedupeByUrlPath(items);
@@ -383,7 +532,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return _dedupeByLatestVisit(items);
     }
   }
-  /* Extract unique hosts from history items */
+
   function extractUniqueHosts(items) {
     const hosts = new Set();
     items.forEach((item) => {
@@ -394,7 +543,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     return Array.from(hosts).sort();
   }
-  /* Autocomplete functionality for host filter */
+
   function showHostDropdown(matches) {
     hostDropdown.innerHTML = "";
     if (matches.length === 0) {
@@ -417,10 +566,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     hostDropdown.classList.add("visible");
     selectedHostIndex = -1;
   }
+
   function hideHostDropdown() {
     hostDropdown.classList.remove("visible");
     selectedHostIndex = -1;
   }
+
   function filterHosts(query) {
     if (!query) return availableHosts;
     const lowerQuery = query.toLowerCase();
@@ -428,47 +579,93 @@ document.addEventListener("DOMContentLoaded", async () => {
       host.toLowerCase().includes(lowerQuery),
     );
   }
+
   /* Main search function using query object from form */
   async function performSearch() {
     const query = buildQueryObject();
-    console.log("Searching with query:", query);
-    console.log("Unique by path:", uniqueByPathCheckbox.checked);
+    console.log("[Search] Sending query to chrome.history.search...");
+
     try {
       const items = await chrome.history.search(query);
+      console.log(`[Search] API returned ${items?.length || 0} items.`);
+
+      if (items && items.length > 0) {
+        console.log("[Search] First item example:", items[0]);
+      }
+
       historyItems = deduplicateItems(items || []);
-      // Extract and cache available hosts
+      console.log(
+        `[Search] After deduplication: ${historyItems.length} items.`,
+      );
+
       availableHosts = extractUniqueHosts(historyItems);
+
       render(historyItems);
     } catch (error) {
-      console.error("Error searching history:", error);
+      console.error("[Search] Error searching history:", error);
       list.innerHTML = `<p style="text-align:center; color: #ef4444; padding: 40px 0;">Error: ${error.message}</p>`;
     }
   }
+
   /* Events */
-  // Search button click
   btnSearch.onclick = performSearch;
-  // Also trigger search on Enter key in text input
+
   searchTextInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       performSearch();
     }
   });
-  // Update custom inputs when timeRange changes
+
+  function handleDateInputChange() {
+    updateClearButtonVisibility();
+    if (startTimeInput.value || endTimeInput.value) {
+      timeRangeSelect.value = "custom";
+    }
+    if (historyItems.length > 0) {
+      performSearch();
+    }
+  }
+
+  startTimeInput.addEventListener("input", handleDateInputChange);
+  endTimeInput.addEventListener("input", handleDateInputChange);
+
+  clearStartBtn.addEventListener("click", () => {
+    startTimeInput.value = "";
+    updateClearButtonVisibility();
+    if (!endTimeInput.value && timeRangeSelect.value === "custom") {
+      timeRangeSelect.value = "all";
+    }
+    performSearch();
+  });
+
+  clearEndBtn.addEventListener("click", () => {
+    endTimeInput.value = "";
+    updateClearButtonVisibility();
+    if (!startTimeInput.value && timeRangeSelect.value === "custom") {
+      timeRangeSelect.value = "all";
+    }
+    performSearch();
+  });
+
   timeRangeSelect.addEventListener("change", () => {
     if (timeRangeSelect.value !== "custom") {
-      // Clear custom datetime inputs when using preset
       startTimeInput.value = "";
       endTimeInput.value = "";
+      updateClearButtonVisibility();
+      performSearch();
+    } else {
+      if (historyItems.length > 0) {
+        render(historyItems);
+      }
     }
   });
-  // Re-deduplicate and re-render when uniqueByPath toggle changes
+
   uniqueByPathCheckbox.addEventListener("change", () => {
     if (historyItems.length > 0) {
-      // Re-fetch from original API results would be ideal, but for now re-run search
       performSearch();
     }
   });
-  // Handle radio button changes for open status - automatically filter
+
   openStatusRadios.forEach((radio) => {
     radio.addEventListener("change", () => {
       if (historyItems.length > 0) {
@@ -476,16 +673,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   });
-  // Host filter input with autocomplete
+
   hostFilterInput.addEventListener("input", () => {
     const query = hostFilterInput.value.trim();
     const matches = filterHosts(query);
     showHostDropdown(matches);
-    // Auto-filter as user types
     if (historyItems.length > 0) {
       render(historyItems);
     }
   });
+
   hostFilterInput.addEventListener("focus", () => {
     const query = hostFilterInput.value.trim();
     const matches = filterHosts(query);
@@ -493,13 +690,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       showHostDropdown(matches);
     }
   });
+
   hostFilterInput.addEventListener("blur", () => {
-    // Delay hiding to allow click events on dropdown
     setTimeout(() => {
       hideHostDropdown();
     }, 200);
   });
-  // Keyboard navigation for autocomplete
+
   hostFilterInput.addEventListener("keydown", (e) => {
     const dropdownItems = hostDropdown.querySelectorAll(".autocomplete-item");
     if (
@@ -533,6 +730,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       hideHostDropdown();
     }
   });
+
   function updateSelectedHost(dropdownItems) {
     dropdownItems.forEach((item, index) => {
       if (index === selectedHostIndex) {
@@ -543,29 +741,57 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
   }
-  // Visit count filter inputs
+
   minVisitCountInput.addEventListener("input", () => {
     if (historyItems.length > 0) {
       render(historyItems);
     }
   });
+
   maxVisitCountInput.addEventListener("input", () => {
     if (historyItems.length > 0) {
       render(historyItems);
     }
   });
-  // Sort controls
+
+  maxResultsInput.addEventListener("input", () => {
+    let value = parseInt(maxResultsInput.value, 10);
+    if (isNaN(value) || value < 1) value = 1;
+    if (value > 10000) value = 10000;
+    maxResultsInput.value = value;
+    performSearch();
+  });
+
+  maxResultsInput.addEventListener("change", () => {
+    let value = parseInt(maxResultsInput.value, 10);
+    if (isNaN(value) || value < 1) value = 1;
+    if (value > 10000) value = 10000;
+    maxResultsInput.value = value;
+    performSearch();
+  });
+
   sortBySelect.addEventListener("change", () => {
     if (historyItems.length > 0) {
       render(historyItems);
     }
   });
+
   sortOrderSelect.addEventListener("change", () => {
     if (historyItems.length > 0) {
       render(historyItems);
     }
   });
-  // Handle "go to / open" button clicks (delegated)
+
+  btnCheckAll.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll(".row-check");
+    checkboxes.forEach((cb) => (cb.checked = true));
+  });
+
+  btnClearAll.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll(".row-check");
+    checkboxes.forEach((cb) => (cb.checked = false));
+  });
+
   list.addEventListener("click", async (e) => {
     const btn = e.target.closest(".go-btn");
     if (!btn) return;
@@ -579,7 +805,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       await chrome.tabs.create({ url, active: false });
     }
   });
-  // Make entire row clickable to toggle checkbox
+
   list.addEventListener("click", (event) => {
     const item = event.target.closest(".history-item");
     if (!item) return;
@@ -592,6 +818,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       checkbox.checked = !checkbox.checked;
     }
   });
+
   btnOpen.onclick = () => {
     const urls = [...document.querySelectorAll(".row-check")]
       .filter((c) => c.checked)
@@ -601,11 +828,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       chrome.tabs.create({ url, active: false });
     });
   };
-  // Download as JSON
+
   btnDownloadJson.onclick = () => {
-    // Use the filtered/sorted items to match what is shown
-    const itemsToExport = getFilteredAndSortedItems(historyItems);
-    const jsonData = JSON.stringify(itemsToExport, null, 2);
+    const jsonData = JSON.stringify(filteredItems, null, 2);
     const blob = new Blob([jsonData], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -614,14 +839,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     a.click();
     URL.revokeObjectURL(url);
   };
-  // Copy JSON to clipboard
+
   btnCopyJson.onclick = async () => {
     try {
-      // Use the filtered/sorted items to match what is shown
-      const itemsToCopy = getFilteredAndSortedItems(historyItems);
-
-      // Create array of objects with full details including datetime ISO
-      const dataToCopy = itemsToCopy.map((item) => ({
+      const dataToCopy = filteredItems.map((item) => ({
         title: item.title || "Untitled",
         url: item.url,
         lastVisitTime: item.lastVisitTime,
@@ -632,9 +853,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         typedCount: item.typedCount,
       }));
       const jsonString = JSON.stringify(dataToCopy, null, 2);
-      // Use navigator.clipboard.writeText which works in extension contexts with clipboardWrite permission
       await navigator.clipboard.writeText(jsonString);
-      // Show temporary feedback
       const originalText = btnCopyJson.textContent;
       btnCopyJson.textContent = "Copied!";
       setTimeout(() => {
@@ -647,17 +866,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       );
     }
   };
+
   /* Init */
   await loadOpenTabs();
-  // Initial search with default query (All time)
+  updateClearButtonVisibility();
   performSearch();
-  // Refresh open tabs status when tabs change
+
   chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     if (changeInfo.url || changeInfo.status === "complete") {
       await loadOpenTabs();
       render(historyItems);
     }
   });
+
   chrome.tabs.onRemoved.addListener(async () => {
     await loadOpenTabs();
     render(historyItems);

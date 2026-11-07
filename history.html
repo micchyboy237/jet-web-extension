@@ -41,13 +41,14 @@
         width: 80px;
       }
       input[type="datetime-local"] {
-        width: 200px;
+        width: 180px;
       }
       .history-list {
         display: flex;
         flex-direction: column;
         gap: 24px;
         flex: 1;
+        overflow-y: auto; /* Allow scrolling within the list area */
       }
       .day-group {
         display: flex;
@@ -297,6 +298,65 @@
         gap: 12px;
         flex-wrap: wrap;
       }
+      /* Date Input Wrapper */
+      .date-input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .clear-date-btn {
+        background: none;
+        border: none;
+        color: #9ca3af;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0 4px;
+        line-height: 1;
+        display: none; /* Hidden by default */
+      }
+      .date-input-wrapper.has-value .clear-date-btn {
+        display: block;
+      }
+      .clear-date-btn:hover {
+        color: #ef4444;
+      }
+      /* Pagination Styles */
+      .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding: 8px 0;
+      }
+      .page-btn {
+        padding: 6px 12px;
+        border: 1px solid #d1d5db;
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: #4b5563;
+        transition: all 0.15s;
+      }
+      .page-btn:hover:not(:disabled) {
+        background: #f3f4f6;
+        border-color: #9ca3af;
+      }
+      .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .page-btn.active {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+      }
+      .page-info {
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin: 0 8px;
+      }
     </style>
   </head>
   <body>
@@ -324,7 +384,16 @@
       </div>
       <div class="form-row">
         <label for="startTime">Start:</label>
-        <input id="startTime" type="datetime-local" />
+        <div class="date-input-wrapper" id="start-time-wrapper">
+          <input id="startTime" type="datetime-local" />
+          <button
+            class="clear-date-btn"
+            id="clear-start"
+            title="Clear start date"
+          >
+            ×
+          </button>
+        </div>
         <select id="timeRange">
           <option value="custom">Custom range</option>
           <option value="1h">Last hour</option>
@@ -335,11 +404,16 @@
       </div>
       <div class="form-row">
         <label for="endTime">End:</label>
-        <input id="endTime" type="datetime-local" />
+        <div class="date-input-wrapper" id="end-time-wrapper">
+          <input id="endTime" type="datetime-local" />
+          <button class="clear-date-btn" id="clear-end" title="Clear end date">
+            ×
+          </button>
+        </div>
       </div>
       <div class="form-row">
         <label for="maxResults">Max results:</label>
-        <input id="maxResults" type="number" value="100" min="1" max="10000" />
+        <input id="maxResults" type="number" value="1000" min="1" max="10000" />
       </div>
       <div class="form-row">
         <label for="minVisitCount">Min visits:</label>
@@ -414,6 +488,12 @@
       >
         Search History
       </button>
+      <button id="btn-check-all" style="padding: 6px 10px; font-size: 0.85rem">
+        Check All
+      </button>
+      <button id="btn-clear-all" style="padding: 6px 10px; font-size: 0.85rem">
+        Clear All
+      </button>
       <button id="btn-open" style="padding: 6px 10px; font-size: 0.85rem">
         Open selected in new tabs
       </button>
@@ -429,6 +509,7 @@
       <div id="total-items">Found: 0 items</div>
     </div>
     <div class="history-list" id="list"></div>
+    <div id="pagination" class="pagination"></div>
     <script src="history.js"></script>
   </body>
 </html>
