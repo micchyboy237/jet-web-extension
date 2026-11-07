@@ -48,7 +48,6 @@
         flex-direction: column;
         gap: 24px;
         flex: 1;
-        overflow-y: auto;
       }
       .day-group {
         display: flex;
@@ -165,9 +164,9 @@
         background: #6ee7b7;
       }
       #total-items {
-        margin-left: auto;
         font-size: 0.85rem;
         color: #6b7280;
+        font-weight: 500;
       }
       .form-row {
         display: flex;
@@ -227,11 +226,72 @@
         font-size: 0.85rem;
         color: #4b5563;
       }
+      /* Radio Group Styles */
+      .radio-group {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.85rem;
+        color: #4b5563;
+        cursor: pointer;
+      }
+      .radio-option input[type="radio"] {
+        cursor: pointer;
+      }
+      /* Autocomplete Styles */
+      .autocomplete-container {
+        position: relative;
+        flex: 1;
+        min-width: 200px;
+      }
+      .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        display: none;
+      }
+      .autocomplete-dropdown.visible {
+        display: block;
+      }
+      .autocomplete-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .autocomplete-item:last-child {
+        border-bottom: none;
+      }
+      .autocomplete-item:hover {
+        background: #f3f4f6;
+      }
+      .autocomplete-item.selected {
+        background: #dbeafe;
+      }
+      .toolbar {
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
     </style>
   </head>
   <body>
     <h1>Visited URL History</h1>
-
     <!-- Form fields matching chrome.history.search query object -->
     <div class="controls">
       <div class="form-row">
@@ -242,7 +302,17 @@
           placeholder="Search by title or URL..."
         />
       </div>
-
+      <div class="form-row">
+        <label for="host-filter">Host:</label>
+        <div class="autocomplete-container">
+          <input
+            id="host-filter"
+            type="text"
+            placeholder="Filter by hostname..."
+          />
+          <div id="host-dropdown" class="autocomplete-dropdown"></div>
+        </div>
+      </div>
       <div class="form-row">
         <label for="startTime">Start:</label>
         <input id="startTime" type="datetime-local" />
@@ -254,17 +324,14 @@
           <option value="all" selected>All time</option>
         </select>
       </div>
-
       <div class="form-row">
         <label for="endTime">End:</label>
         <input id="endTime" type="datetime-local" />
       </div>
-
       <div class="form-row">
         <label for="maxResults">Max results:</label>
         <input id="maxResults" type="number" value="100" min="1" max="10000" />
       </div>
-
       <div class="form-row">
         <label></label>
         <div style="display: flex; gap: 16px; align-items: center">
@@ -275,16 +342,24 @@
             </label>
             Unique by path
           </label>
-          <label style="display: flex; align-items: center; gap: 6px">
-            <input type="checkbox" id="onlyUnopened" />
-            Unopened only
-          </label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="openStatus" value="all" checked />
+              All
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="openStatus" value="opened" />
+              Opened
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="openStatus" value="unopened" />
+              Unopened
+            </label>
+          </div>
         </div>
-        <div id="total-items">Found: 0 items</div>
       </div>
     </div>
-
-    <div style="margin-bottom: 10px">
+    <div class="toolbar">
       <button
         id="btn-search"
         style="
@@ -308,8 +383,11 @@
       >
         Download as JSON
       </button>
+      <button id="btn-copy-json" style="padding: 6px 10px; font-size: 0.85rem">
+        Copy JSON
+      </button>
+      <div id="total-items">Found: 0 items</div>
     </div>
-
     <div class="history-list" id="list"></div>
     <script src="history.js"></script>
   </body>
